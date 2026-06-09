@@ -119,8 +119,19 @@ def contract():
                         f"white-space:pre-wrap'>{text}</pre>")
 
 
+def _warm_camera():
+    """Touch the camera once from the MAIN thread so macOS shows its
+    permission prompt properly (it can't from a worker thread)."""
+    try:
+        import cv2
+        cv2.VideoCapture(0).release()
+    except Exception:
+        pass
+
+
 def main():
     import uvicorn
+    _warm_camera()
     webbrowser.open(f"http://{HOST}:{PORT}")
     uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
 

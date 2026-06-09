@@ -118,9 +118,11 @@ def setup_page() -> str:
     <b>2.</b> Type their LIMS code (never a name). <b>3.</b> Tick consent
     only if consent is really recorded. <b>4.</b> Start.</p>
     <div id='wrap'>
-      <img id='cam' src='/preview.mjpg' width='640' height='480'>
+      <img id='cam' src='/preview.mjpg' width='640' height='480'
+           onerror='camFail(this)'>
       <canvas id='overlay' width='640' height='480'></canvas>
     </div>
+    <div id='camhint' class='banner' style='display:none'></div>
     <div class='row'>
       <label>LIMS code <input id='lims' size='10' pattern='{CODE_HTML_PATTERN}'
              maxlength='{CODE_MAXLENGTH}' placeholder='L-1042'></label>
@@ -140,6 +142,13 @@ def setup_page() -> str:
       <a class='btn quiet' href='/'>Cancel</a>
     </div>
     <script>
+    async function camFail(img) {{
+      img.style.opacity = 0.15;
+      const d = document.getElementById('camhint');
+      try {{ const r = await fetch('/preview.mjpg'); d.textContent = await r.text(); }}
+      catch (e) {{ d.textContent = 'The camera is not available right now.'; }}
+      d.style.display = 'block';
+    }}
     const canvas = document.getElementById('overlay'), ctx = canvas.getContext('2d');
     let drag = null, rect = null, children = [];
     canvas.onmousedown = e => {{ drag = [e.offsetX, e.offsetY]; }};
@@ -195,11 +204,19 @@ def live_page(session_id: int) -> str:
     body = f"""
     <p>Session {session_id} is recording <b>numbers only</b> — no video is
     being saved. Watch the live view to confirm the right spot is tracked.</p>
-    <img src='/preview.mjpg' width='640' height='480'>
+    <img src='/preview.mjpg' width='640' height='480' onerror='camFail(this)'>
+    <div id='camhint' class='banner' style='display:none'></div>
     <div class='row'>
       <button class='btn' onclick='stopSession()'>Stop session</button>
     </div>
     <script>
+    async function camFail(img) {{
+      img.style.opacity = 0.15;
+      const d = document.getElementById('camhint');
+      try {{ const r = await fetch('/preview.mjpg'); d.textContent = await r.text(); }}
+      catch (e) {{ d.textContent = 'The camera is not available right now.'; }}
+      d.style.display = 'block';
+    }}
     async function stopSession() {{
       const r = await fetch('/api/session/stop', {{method:'POST'}});
       const j = await r.json();
