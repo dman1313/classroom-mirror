@@ -1,0 +1,8 @@
+#!/bin/sh
+# The one command that proves everything: ./check
+cd "$(dirname "$0")"
+if [ ! -x ".venv/bin/python" ]; then
+  echo "The app is not installed yet. Run:  bash install.sh"
+  exit 1
+fi
+exec ./.venv/bin/python -m tests.scoreboard "$@"
