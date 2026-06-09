@@ -164,7 +164,7 @@ def setup_page() -> str:
       const consent = document.getElementById('consent').checked;
       if (!rect || rect[2] < 10) {{ alert('Drag a box over the child\\'s spot first.'); return; }}
       if (!lims.match(/^{CODE_HTML_PATTERN}$/)) {{
-        alert('A LIMS code is 1-12 letters, digits or hyphens - never a name.'); return; }}
+        alert('A LIMS code is 1-12 letters, digits or hyphens with at least one digit (like L-1042) - never a name.'); return; }}
       children.push({{ lims: lims, consent: consent, px: rect,
         zone: [rect[0]/640, rect[1]/480, rect[2]/640, rect[3]/480] }});
       document.getElementById('children').innerHTML = children.map(c =>

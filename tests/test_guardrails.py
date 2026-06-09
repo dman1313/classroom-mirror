@@ -49,7 +49,7 @@ def test_pipeline_writes_no_frames_anywhere(tmp_path):
 
     before_repo = _tree(ROOT)
     db = Database(data_dir=str(tmp_path / "data"))
-    sid = db.start_session("mode2", "none", "TEST")
+    sid = db.start_session("mode2", "none", "TEST-1")
     results = process_video(str(video), PoseDetector(), Mode2Engine())
     persist_results(db, sid, "mode2", results)
     db.close()
@@ -143,7 +143,7 @@ def test_local_only(tmp_db, loopback_only):
     from app.main import app
 
     frames, _ = stream_class()
-    sid = tmp_db.start_session("mode2", "none", "TEST")
+    sid = tmp_db.start_session("mode2", "none", "TEST-1")
     for minute, bodies, raises, bucket in run_offline(frames, Mode2Engine()):
         tmp_db.add_mode2_minute(sid, minute, bodies, raises, bucket)
     reports.mode2_summary_html(tmp_db, sid)
