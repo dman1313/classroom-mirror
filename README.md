@@ -1,7 +1,7 @@
 # Classroom Mirror
 
-Classroom Mirror V2 is a local-only teacher support tool for a **Windows
-teacher-desk laptop with a selectable USB webcam**. The private teacher
+Classroom Mirror V2 is a local-only teacher support tool for **Windows and
+macOS teacher-desk laptops with a selectable USB webcam**. The private teacher
 dashboard will use anonymous sticky face numbers, High/Low sensitivity chosen
 before Start, yellow then red movement/fidget cues, and an end-of-class recap.
 
@@ -11,13 +11,27 @@ not part of the current implementation work. The first beta is adults only.
 
 ## Current implementation status
 
-The accepted V2 plan is reconciled with this repository, but the V2 runtime is
-not implemented yet. Start with:
+The accepted V2 plan is reconciled with this repository. The first shared V2
+camera runtime and macOS install/run path are implemented; later anonymous-ID,
+sensitivity, alert, and recap slices are not yet implemented. Start with:
 
 - [V2-DELTA.md](V2-DELTA.md) — contract conflict, repository inventory, exact
   acceptance tests and commands, and the bounded T1 implementation slice.
 - [WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md) — adult-only Windows USB camera
   smoke checklist.
+- [MAC-V2-SMOKE.md](MAC-V2-SMOKE.md) — exact macOS install, permission, camera
+  picker, and real-device smoke checklist.
+
+On macOS with Python 3.11:
+
+```sh
+./install-v2-mac.sh
+./run-v2.command
+```
+
+This V2 launcher inventories local cameras, requires an explicit index, reads
+frames in memory for a bounded connection check, and serves only on
+`127.0.0.1`. The historical `run.command` remains V1 evidence.
 
 Run the dependency-free T0 readiness check with Python 3.11:
 

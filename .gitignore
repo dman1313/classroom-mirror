@@ -1,4 +1,5 @@
 .venv/
+.venv-mac-v2/
 __pycache__/
 *.pyc
 data/

@@ -12,6 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent
 T1_SUITE = ROOT / "v2_tests" / "test_windows_runtime.py"
+T1_MAC_SUITE = "v2_tests.test_mac_runtime"
 STRICT_PLUGIN = "v2_tests.strict_acceptance"
 REQUIRED_T1_TESTS = {
     "V2-T1-01": "test_preflight_runs_without_admin_or_installing",
@@ -93,16 +94,25 @@ def run_t1(camera_index: int | None) -> int:
     return run_pytest_strict(T1_SUITE, camera_index=camera_index)
 
 
+def run_t1_mac() -> int:
+    """Run hardware-independent shared/macOS acceptance before real smoke."""
+    suite = unittest.defaultTestLoader.loadTestsFromName(T1_MAC_SUITE)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    return 0 if result.wasSuccessful() else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run a stage of the accepted Classroom Mirror V2 contract."
     )
-    parser.add_argument("--stage", choices=("t0", "t1"), required=True)
+    parser.add_argument("--stage", choices=("t0", "t1", "t1-mac"), required=True)
     parser.add_argument("--camera-index", type=int)
     args = parser.parse_args()
 
     if args.stage == "t0":
         return run_t0()
+    if args.stage == "t1-mac":
+        return run_t1_mac()
     return run_t1(args.camera_index)
 
 
