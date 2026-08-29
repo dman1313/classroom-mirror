@@ -1,5 +1,10 @@
 # LATER — postponed ideas (raw material for version 2)
 
+> **Historical V1 backlog.** The accepted V2 direction now lives in
+> [V2-DELTA.md](V2-DELTA.md). In particular, Windows is no longer postponed.
+> Named face-tagging and emotion/engagement scoring remain rejected; V2 permits
+> only local anonymous templates under its explicit adult-beta privacy contract.
+
 Roughly ordered by value. Cut during the interview or discovered during the build — nothing here is lost, only postponed.
 
 - Seated-count for Mode 2 (room-level "how many children are seated" metric — cut from v1 to keep whole-class metrics simple and robust).

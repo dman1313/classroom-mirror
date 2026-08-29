@@ -1,5 +1,10 @@
 # Classroom Mirror — Setup Guide
 
+> **Historical V1 instructions.** This Mac/LIMS/pose-only setup is preserved as
+> test evidence and is not the accepted V2 product path. For current work, read
+> [V2-DELTA.md](V2-DELTA.md) and [WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md).
+> Do not use this setup for a student trial.
+
 A local webcam tool that turns classroom moments into **numbers, never video**.
 Whole-class numbers are anonymous; individual tracking exists only for a
 designated child with recorded consent, identified by a LIMS code — never a name.

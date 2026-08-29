@@ -1,5 +1,9 @@
 # Your sign-off sheet — criteria 15 to 19
 
+> **Historical V1 sign-off.** These Mac/LIMS/pose-only checks are retained as
+> evidence and do not approve the accepted V2 product. The V2 adult-only Windows
+> smoke is [WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md).
+
 The automatic tests prove 14 of the contract's 19 criteria. These last five
 are yours: things only a human can judge. Do them in one sitting (about ten
 minutes). Adults only in front of the camera — never real pupils during

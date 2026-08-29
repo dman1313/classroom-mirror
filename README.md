@@ -1,46 +1,55 @@
 # Classroom Mirror
 
-A local-only webcam tool for teachers: classroom moments become **numbers,
-never video**. Built privacy-first for a French/EU school context.
+Classroom Mirror V2 is a local-only teacher support tool for a **Windows
+teacher-desk laptop with a selectable USB webcam**. The private teacher
+dashboard will use anonymous sticky face numbers, High/Low sensitivity chosen
+before Start, yellow then red movement/fidget cues, and an end-of-class recap.
 
-- **Mode 1 — strategy tracking.** Is a support strategy working for a
-  designated child? Consent-gated, pseudonymous (LIMS codes, never names),
-  zone-based (no facial recognition). Baseline vs strategy sessions produce a
-  neutral before/after report.
-- **Mode 2 — whole-class reflection.** Aggregate-only room patterns
-  (hand-raises, movement, people in view) as a mirror for the teacher's own
-  practice. No per-child data exists in this mode — the database table has no
-  column for it.
+Students never see the dashboard, flags, or numbers. Names, stored face images,
+stored video, cloud processing, automated consequences, and student trials are
+not part of the current implementation work. The first beta is adults only.
 
-## The contract
+## Current implementation status
 
-This project was built with the [Loop Generator](https://github.com/dman1313/agent-ready-coding-loop)
-method: [CONTRACT.md](CONTRACT.md) holds 19 binary criteria signed before any
-code was written. **`./check` proves them all** — a plain-English scoreboard
-anyone can run, guardrails first:
+The accepted V2 plan is reconciled with this repository, but the V2 runtime is
+not implemented yet. Start with:
 
-no video stored · no facial recognition · no emotion/attention inference ·
-names cannot enter the system · zero network traffic at runtime · consent
-required for Mode 1 · Mode 2 aggregate-only by schema · full erasure.
+- [V2-DELTA.md](V2-DELTA.md) — contract conflict, repository inventory, exact
+  acceptance tests and commands, and the bounded T1 implementation slice.
+- [WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md) — adult-only Windows USB camera
+  smoke checklist.
 
-## Run it
+Run the dependency-free T0 readiness check with Python 3.11:
 
-```
-bash install.sh        # once, needs internet once
-double-click run.command
-./check                # the scoreboard, any time
+```sh
+python check-v2.py --stage t0
 ```
 
-See [SETUP.md](SETUP.md) for the non-coder version, and
-[HUMAN-CHECKS.md](HUMAN-CHECKS.md) for the five human sign-offs.
+The T1 gate intentionally fails closed until the Windows runtime suite exists:
 
-## Honesty clause
+```sh
+python check-v2.py --stage t1 --camera-index 1
+```
 
-Fixtures prove the mechanism, not classroom-grade accuracy — pose detection
-in a crowded room is noisy. Real-classroom use requires the homework in
-SETUP.md first: DPIA, parental consent (Mode 1), school sign-off, CNIL check.
+## Historical V1 evidence
 
-## Stack
+The current `app/`, `tests/`, Mac launchers, and signed [CONTRACT.md](CONTRACT.md)
+implement the cancelled V1 pose-only/no-faces product. They remain in the
+repository because their tests are useful historical evidence; they are not
+the V2 product path and must not be weakened or silently reinterpreted.
 
-Python 3.11 · Ultralytics YOLO11n-pose (AGPL — see LATER.md before any
-distribution) · OpenCV · FastAPI on 127.0.0.1 · SQLite · no JS frameworks.
+The historical command remains:
+
+```sh
+./check
+```
+
+It proves only the signed V1 Mac/pose-only criteria. The local `.venv` is not
+portable and may need to be recreated before that historical suite can run.
+
+## Retained stack direction
+
+The accepted plan retains Python 3.11, FastAPI/Uvicorn on `127.0.0.1`, OpenCV,
+SQLite, and the pose pipeline unless T1 proves a blocker. T1 must lock reviewed
+versions and licences before beta release; `requirements.txt` currently gives
+lower bounds only.
