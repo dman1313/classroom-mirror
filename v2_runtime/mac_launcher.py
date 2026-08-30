@@ -85,16 +85,12 @@ def create_app(camera_index: int):
 
 def serve(camera_index: int, *, host: str = LOOPBACK_HOST, port: int = DEFAULT_PORT,
           open_browser: bool = True) -> None:
-    import uvicorn
+    from v2_app.server import serve as serve_product
 
     validate_bind_host(host)
     if not 1024 <= port <= 65535:
         raise ValueError("port must be between 1024 and 65535")
-    if open_browser:
-        import webbrowser
-
-        webbrowser.open(f"http://{host}:{port}")
-    uvicorn.run(create_app(camera_index), host=host, port=port, log_level="warning")
+    serve_product(camera_index, host=host, port=port, open_browser=open_browser)
 
 
 def build_parser() -> argparse.ArgumentParser:

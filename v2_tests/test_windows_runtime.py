@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import builtins
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 import re
+from unittest.mock import patch
 
 import pytest
 
@@ -17,6 +21,58 @@ from v2_runtime.policy import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class FakeFrame:
+    size = 12
+
+
+class FakeCapture:
+    def __init__(self, index, *, opened=True, frames=(), backend="FAKE"):
+        self.index = index
+        self._opened = opened
+        self._frames = list(frames)
+        self._backend = backend
+        self.released = False
+
+    def isOpened(self):
+        return self._opened
+
+    def read(self):
+        if not self._frames:
+            return False, None
+        return self._frames.pop(0)
+
+    def getBackendName(self):
+        return self._backend
+
+    def release(self):
+        self.released = True
+
+
+class FakeCaptureFactory:
+    def __init__(self, cameras=None, error=None):
+        self.cameras = cameras or {}
+        self.error = error
+        self.opened_indexes = []
+        self.instances = []
+
+    def __call__(self, index):
+        self.opened_indexes.append(index)
+        if self.error is not None:
+            raise self.error
+        capture = FakeCapture(index, **self.cameras.get(index, {"opened": False}))
+        self.instances.append(capture)
+        return capture
+
+
+def _snapshot_files(*roots):
+    return {
+        path.resolve()
+        for root in roots
+        for path in Path(root).rglob("*")
+        if path.is_file()
+    }
 
 
 def _load_v2_runner():
@@ -56,6 +112,148 @@ def test_preflight_runs_without_admin_or_installing():
     )
     for pattern in forbidden:
         assert re.search(pattern, source, re.I) is None, pattern
+
+
+def test_camera_inventory_can_select_non_default_device():
+    """V2-T1-02: rows are safe and capture never substitutes index zero."""
+    from v2_runtime.camera import inventory_cameras, inventory_display_rows, smoke_camera
+
+    inventory_factory = FakeCaptureFactory(
+        {
+            0: {"opened": True, "backend": "BUILT-IN"},
+            1: {"opened": False},
+            2: {
+                "opened": True,
+                "backend": r"MSMF C:\\Users\\Teacher\\serial-ABC123",
+            },
+        }
+    )
+    cameras = inventory_cameras(max_index=2, capture_factory=inventory_factory)
+
+    assert [camera.index for camera in cameras] == [0, 2]
+    assert inventory_display_rows(cameras) == (
+        "Camera 1 (index 0)",
+        "Camera 2 (index 2)",
+    )
+    rows = " ".join(inventory_display_rows(cameras)).lower()
+    assert "serial" not in rows
+    assert "users" not in rows
+    assert "teacher" not in rows
+    assert all(capture.released for capture in inventory_factory.instances)
+
+    selected_factory = FakeCaptureFactory(
+        {2: {"opened": True, "frames": [(True, FakeFrame())], "backend": "MSMF"}}
+    )
+    times = iter((0.0, 0.0, 0.2))
+    result = smoke_camera(
+        2,
+        seconds=0.1,
+        capture_factory=selected_factory,
+        clock=lambda: next(times),
+        sleeper=lambda _: None,
+    )
+    assert result.camera_index == 2
+    assert selected_factory.opened_indexes == [2]
+
+
+@pytest.mark.parametrize(
+    ("factory", "message"),
+    (
+        (
+            FakeCaptureFactory(error=PermissionError("camera access denied")),
+            r"permission denied.*ms-settings:privacy-webcam",
+        ),
+        (
+            FakeCaptureFactory(error=BlockingIOError("device is busy")),
+            r"busy.*another app",
+        ),
+        (
+            FakeCaptureFactory({4: {"opened": False}}),
+            r"not available.*plugged in",
+        ),
+    ),
+)
+def test_missing_or_denied_camera_fails_clearly(factory, message):
+    """V2-T1-03: absent, busy, and permission failures are distinguishable."""
+    from v2_runtime.camera import CameraUnavailable, smoke_camera
+
+    with pytest.raises(CameraUnavailable, match=message):
+        smoke_camera(4, seconds=0.1, capture_factory=factory)
+    assert factory.opened_indexes == [4]
+    assert all(capture.released for capture in factory.instances)
+
+
+def test_selected_camera_reads_frames_in_memory_and_releases():
+    """V2-T1-04: bounded frames stay in memory and every capture is released."""
+    from v2_runtime.camera import CameraUnavailable, smoke_camera
+
+    success = FakeCaptureFactory(
+        {3: {"opened": True, "frames": [(True, FakeFrame())], "backend": "MSMF"}}
+    )
+    times = iter((0.0, 0.0, 0.2))
+    result = smoke_camera(
+        3,
+        seconds=0.1,
+        capture_factory=success,
+        clock=lambda: next(times),
+        sleeper=lambda _: None,
+    )
+    assert result.frame_count == 1
+    assert success.instances[0].released
+
+    failure = FakeCaptureFactory({3: {"opened": True, "frames": []}})
+    times = iter((0.0, 0.0))
+    with pytest.raises(CameraUnavailable, match="stopped sending frames"):
+        smoke_camera(
+            3,
+            seconds=0.1,
+            capture_factory=failure,
+            clock=lambda: next(times),
+            sleeper=lambda _: None,
+        )
+    assert failure.instances[0].released
+
+
+def test_camera_smoke_writes_no_frame_image_or_video(tmp_path, monkeypatch):
+    """V2-T1-05: smoke performs no media or other filesystem write."""
+    from v2_runtime.camera import smoke_camera
+
+    repo = tmp_path / "repo"
+    cwd = tmp_path / "cwd"
+    user_data = tmp_path / "LocalAppData"
+    run_scratch = tmp_path / "run-scratch"
+    for root in (repo, cwd, user_data, run_scratch):
+        root.mkdir()
+    before = _snapshot_files(repo, cwd, user_data, run_scratch)
+    write_calls = []
+    original_open = builtins.open
+
+    def guarded_open(file, mode="r", *args, **kwargs):
+        if any(flag in mode for flag in "wax+"):
+            write_calls.append((Path(file), mode))
+        return original_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", guarded_open)
+    monkeypatch.chdir(cwd)
+    monkeypatch.setenv("LOCALAPPDATA", str(user_data))
+    monkeypatch.setenv("PAPERCLIP_RUN_SCRATCH_DIR", str(run_scratch))
+    factory = FakeCaptureFactory(
+        {2: {"opened": True, "frames": [(True, FakeFrame())]}}
+    )
+    times = iter((0.0, 0.0, 0.2))
+
+    result = smoke_camera(
+        2,
+        seconds=0.1,
+        capture_factory=factory,
+        clock=lambda: next(times),
+        sleeper=lambda _: None,
+    )
+
+    assert result.frame_count == 1
+    assert write_calls == []
+    assert _snapshot_files(repo, cwd, user_data, run_scratch) == before
+    assert factory.instances[0].released
 
 
 def test_service_refuses_non_loopback_bind():
@@ -220,3 +418,85 @@ def test_run_bat_foundation_fails_closed_until_camera_increment():
         assert argument in source
     assert "v2_runtime.launcher" in source
     assert "exit /b %result%" in source
+
+
+def test_run_bat_smoke_uses_selected_camera_and_exits():
+    """V2-T1-08: smoke captures, health-checks loopback, and shuts down."""
+    from v2_runtime.camera import CameraSmokeResult, CameraUnavailable
+    from v2_runtime import launcher
+
+    smoke_calls = []
+    health_calls = []
+
+    def fake_smoke(index, *, seconds):
+        smoke_calls.append((index, seconds))
+        return CameraSmokeResult(index, "MSMF", 4, seconds)
+
+    def fake_health(index, *, host):
+        health_calls.append((index, host))
+        return {"ok": True, "camera_index": index, "host": host, "stopped": True}
+
+    output = StringIO()
+    with patch.object(launcher, "smoke_camera", fake_smoke), patch.object(
+        launcher, "run_local_health_check", fake_health
+    ), redirect_stdout(output), redirect_stderr(output):
+        result = launcher.main(
+            ["--smoke-test", "--camera-index", "3", "--seconds", "0.25"]
+        )
+
+    assert result == 0
+    assert smoke_calls == [(3, 0.25)]
+    assert health_calls == [(3, "127.0.0.1")]
+    assert "selected camera index: 3" in output.getvalue().lower()
+    assert "local health: pass" in output.getvalue().lower()
+    assert "service stopped: yes" in output.getvalue().lower()
+
+    with patch.object(
+        launcher,
+        "smoke_camera",
+        side_effect=CameraUnavailable("Camera 3 is busy in another app."),
+    ), redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+        assert launcher.main(
+            ["--smoke-test", "--camera-index", "3", "--seconds", "0.25"]
+        ) != 0
+
+    source = (ROOT / "run.bat").read_text(encoding="utf-8").lower()
+    assert "--smoke-test" in source
+    assert "v2_runtime.launcher" in source
+
+
+def test_teacher_capture_ui_is_private_controllable_and_has_no_identity_fields():
+    from v2_runtime.teacher_ui import TeacherCaptureSession, render_teacher_page
+
+    factory = FakeCaptureFactory(
+        {
+            2: {
+                "opened": True,
+                "frames": [(True, FakeFrame()), (True, FakeFrame())],
+                "backend": "MSMF",
+            }
+        }
+    )
+    session = TeacherCaptureSession(capture_factory=factory)
+    session.set_inventory_indexes([2])
+    session.select_camera(2)
+    preview = session.read_setup_preview()
+    assert preview is not None
+    assert session.preview_frame is preview
+    session.start()
+    assert session.active
+    session.hide()
+    assert not session.teacher_ui_visible
+    session.show()
+    assert session.teacher_ui_visible
+    session.stop()
+    assert not session.active
+    assert session.preview_frame is None
+    assert factory.opened_indexes == [2]
+    assert factory.instances[0].released
+
+    html = render_teacher_page().lower()
+    for control in ("camera-select", "setup-preview", "start-session", "stop-session", "hide-ui", "show-ui"):
+        assert control in html
+    assert "student" not in html
+    assert "name=" not in html
