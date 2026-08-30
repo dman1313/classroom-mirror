@@ -8,8 +8,9 @@ https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import time
-from typing import Callable, Protocol
+from typing import Callable, Iterable, Protocol
 
 
 MAX_CAMERA_INDEX = 9
@@ -30,6 +31,18 @@ CaptureFactory = Callable[[int], Capture]
 
 class CameraUnavailable(RuntimeError):
     """The explicitly selected camera could not provide in-memory frames."""
+
+
+class CameraAbsent(CameraUnavailable):
+    """The selected camera is not connected or no longer available."""
+
+
+class CameraBusy(CameraUnavailable):
+    """The selected camera is already held by another application."""
+
+
+class CameraPermissionDenied(CameraUnavailable):
+    """The operating system denied access to the selected camera."""
 
 
 @dataclass(frozen=True)
@@ -63,9 +76,76 @@ def _opencv_capture(index: int) -> Capture:
 
 def _backend_name(capture: Capture) -> str:
     try:
-        return capture.getBackendName() or "UNKNOWN"
+        backend = capture.getBackendName() or "UNKNOWN"
     except Exception:
         return "UNKNOWN"
+    if not isinstance(backend, str) or not re.fullmatch(r"[A-Za-z0-9 _-]{1,32}", backend):
+        return "UNKNOWN"
+    return backend
+
+
+def inventory_display_rows(cameras: Iterable[CameraInfo]) -> tuple[str, ...]:
+    """Return stable picker labels containing no driver paths or identifiers."""
+    return tuple(
+        f"Camera {position} (index {camera.index})"
+        for position, camera in enumerate(cameras, start=1)
+    )
+
+
+def _translated_camera_error(index: int, exc: BaseException) -> CameraUnavailable:
+    if isinstance(exc, PermissionError):
+        return CameraPermissionDenied(
+            f"Camera {index} permission denied. Open Windows Privacy & security > "
+            "Camera (ms-settings:privacy-webcam), allow desktop apps, and try again. "
+            "No fallback camera was attempted."
+        )
+    if isinstance(exc, BlockingIOError):
+        return CameraBusy(
+            f"Camera {index} is busy in another app. Close the other app and try "
+            "again. No fallback camera was attempted."
+        )
+    return CameraAbsent(
+        f"Camera {index} is not available. Check that it is plugged in and still "
+        "selected. No fallback camera was attempted."
+    )
+
+
+def open_camera(
+    camera_index: int,
+    *,
+    capture_factory: CaptureFactory | None = None,
+) -> Capture:
+    """Open exactly the selected index or raise one plain-language failure."""
+    index = validate_camera_index(camera_index)
+    factory = capture_factory or _opencv_capture
+    try:
+        capture = factory(index)
+    except (PermissionError, BlockingIOError, OSError) as exc:
+        raise _translated_camera_error(index, exc) from exc
+    try:
+        if not capture.isOpened():
+            raise CameraAbsent(
+                f"Camera {index} is not available. Check that it is plugged in and "
+                "still selected. No fallback camera was attempted."
+            )
+    except Exception:
+        capture.release()
+        raise
+    return capture
+
+
+def read_memory_frame(capture: Capture, camera_index: int):
+    """Read one non-empty frame without encoding, logging, or persisting it."""
+    try:
+        ok, frame = capture.read()
+    except (PermissionError, BlockingIOError, OSError) as exc:
+        raise _translated_camera_error(camera_index, exc) from exc
+    if not ok or frame is None or getattr(frame, "size", 1) == 0:
+        raise CameraUnavailable(
+            f"Camera {camera_index} stopped sending frames. It was released; no "
+            "fallback camera was attempted."
+        )
+    return frame
 
 
 def inventory_cameras(
@@ -78,12 +158,16 @@ def inventory_cameras(
     factory = capture_factory or _opencv_capture
     cameras: list[CameraInfo] = []
     for index in range(max_index + 1):
-        capture = factory(index)
+        capture = None
         try:
+            capture = factory(index)
             if capture.isOpened():
                 cameras.append(CameraInfo(index, _backend_name(capture)))
+        except (PermissionError, BlockingIOError, OSError):
+            continue
         finally:
-            capture.release()
+            if capture is not None:
+                capture.release()
     return cameras
 
 
@@ -100,30 +184,18 @@ def smoke_camera(
     if not 0 < seconds <= 30:
         raise ValueError("smoke duration must be greater than 0 and at most 30 seconds")
 
-    factory = capture_factory or _opencv_capture
-    capture = factory(index)
+    capture = open_camera(index, capture_factory=capture_factory)
     started = clock()
     frame_count = 0
     backend = "UNKNOWN"
     elapsed = 0.0
     try:
-        if not capture.isOpened():
-            raise CameraUnavailable(
-                f"Camera {index} could not be opened. Check that it is plugged in, "
-                "not busy in another app, and allowed in the operating system's "
-                "camera privacy settings. No fallback camera was attempted."
-            )
         backend = _backend_name(capture)
         while True:
             elapsed = clock() - started
             if elapsed >= seconds:
                 break
-            ok, frame = capture.read()
-            if not ok or frame is None or getattr(frame, "size", 1) == 0:
-                raise CameraUnavailable(
-                    f"Camera {index} stopped sending frames. It was released; no "
-                    "fallback camera was attempted."
-                )
+            frame = read_memory_frame(capture, index)
             frame_count += 1
             sleeper(0.01)
     finally:
