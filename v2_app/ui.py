@@ -22,6 +22,10 @@ p.mute { color:var(--mute); }
 label { display:block; margin:.6rem 0 .2rem; }
 select { font:inherit; padding:.4rem; }
 .banner { background:#2a2416; border:1px solid var(--yellow); padding:.8rem 1rem; border-radius:10px; }
+.preview { margin:1rem 0; }
+.preview h2 { font-size:1.1rem; margin:0 0 .4rem; }
+.preview img { width:100%; max-width:44rem; border:1px solid var(--line); border-radius:12px; background:#000; display:block; }
+.preview .mute { margin:.3rem 0 0; }
 """
 
 
@@ -90,10 +94,19 @@ def live_page() -> str:
           <button class="btn quiet" id="hide">Hide numbers</button>
           <button class="btn stop" id="stop">Stop</button>
         </div>
+        <section class="preview">
+          <h2>Live camera (teacher only)</h2>
+          <img id="preview" alt="Live camera (teacher only)">
+          <p class="mute">Shown live to the teacher only. Frames are never saved to disk.</p>
+        </section>
         <div class="grid" id="grid"></div>
         <script>
         const grid = document.getElementById('grid');
         const copy = document.getElementById('copy');
+        const preview = document.getElementById('preview');
+        function startPreview() { preview.src = '/api/preview?ts=' + Date.now(); }
+        preview.onerror = () => { setTimeout(startPreview, 1000); };
+        startPreview();
         async function tick() {
           const r = await fetch('/api/state');
           const j = await r.json();
@@ -117,6 +130,8 @@ def live_page() -> str:
           tick();
         };
         document.getElementById('stop').onclick = async () => {
+          preview.onerror = null;
+          preview.removeAttribute('src');
           const r = await fetch('/api/stop', {method:'POST'});
           if (r.ok) location.href = '/recap';
         };

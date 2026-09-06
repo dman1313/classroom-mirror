@@ -39,7 +39,10 @@ class Store:
         self.db_path = self.root / "state" / "classroom-mirror.sqlite3"
         self.key_path = self.root / "config" / "template.key"
         self.book_path = self.root / "state" / "identities.bin"
-        self._conn = sqlite3.connect(self.db_path)
+        # FastAPI runs sync endpoints on threadpool workers, and the live
+        # preview holds one worker for the whole stream, so DB endpoints must be
+        # usable from any worker thread. sqlite3.threadsafety is serialized (3).
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.executescript(SCHEMA)
         self._assert_schema()
         self.key = load_or_create_key(self.key_path)
@@ -48,6 +51,12 @@ class Store:
     def _assert_schema(self) -> None:
         rows = self._conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         for (table,) in rows:
+            # SQLite maintains internal tables (e.g. sqlite_sequence for
+            # AUTOINCREMENT) whose schema we do not control. sqlite_sequence has
+            # a column literally named "name", which is not user data, so the
+            # privacy guard must only inspect application tables.
+            if table.startswith("sqlite_"):
+                continue
             cols = [
                 r[1].lower()
                 for r in self._conn.execute(f"PRAGMA table_info({table})").fetchall()
