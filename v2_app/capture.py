@@ -17,6 +17,26 @@ class CaptureLoop:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.error: str | None = None
+        # Latest frame, JPEG-encoded in RAM for the teacher-only preview.
+        # Never written to disk; replaced each tick and cleared on stop.
+        self._frame_lock = threading.Lock()
+        self._latest_jpeg: bytes | None = None
+
+    def latest_jpeg(self) -> bytes | None:
+        """Return the most recent frame as in-memory JPEG bytes (or None)."""
+        with self._frame_lock:
+            return self._latest_jpeg
+
+    def _publish_frame(self, frame) -> None:
+        import cv2
+
+        # imencode returns the JPEG in a RAM buffer; it does not touch disk.
+        ok, buf = cv2.imencode(".jpg", frame)
+        if not ok:
+            return
+        data = buf.tobytes()
+        with self._frame_lock:
+            self._latest_jpeg = data
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="cm-v2-capture", daemon=True)
@@ -26,6 +46,8 @@ class CaptureLoop:
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=3)
+        with self._frame_lock:
+            self._latest_jpeg = None
 
     def _run(self) -> None:
         import cv2
@@ -40,6 +62,7 @@ class CaptureLoop:
                 if not ok or frame is None:
                     self.error = f"Camera {self.camera_index} stopped sending frames."
                     break
+                self._publish_frame(frame)
                 detections: list[Detection] = []
                 for hit in detect_faces_bgr(frame):
                     gray = crop_gray(frame, hit)

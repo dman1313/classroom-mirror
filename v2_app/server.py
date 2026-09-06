@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
+import time
+
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from v2_runtime.camera import inventory_cameras
 from v2_runtime.policy import LOOPBACK_HOST, validate_bind_host
@@ -17,6 +19,7 @@ from .store import Store
 from . import ui
 
 HOST, PORT = LOOPBACK_HOST, 8470
+PREVIEW_BOUNDARY = "cmv2frame"
 
 
 class AppState:
@@ -41,7 +44,8 @@ def create_app(camera_index: int | None = None) -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+            "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; "
+            "script-src 'unsafe-inline'"
         )
         return response
 
@@ -76,6 +80,32 @@ def create_app(camera_index: int | None = None) -> FastAPI:
         if state.loop and state.loop.error:
             snap["error"] = state.loop.error
         return snap
+
+    @app.get("/api/preview")
+    def api_preview():
+        # Teacher-only live view. Available only while a class loop is running.
+        if state.engine is None or state.loop is None:
+            return JSONResponse({"error": "not running"}, status_code=400)
+
+        boundary = PREVIEW_BOUNDARY.encode()
+
+        def frames():
+            while state.engine is not None and state.loop is not None:
+                loop = state.loop
+                jpeg = loop.latest_jpeg() if loop else None
+                if jpeg:
+                    yield (
+                        b"--" + boundary + b"\r\n"
+                        b"Content-Type: image/jpeg\r\n"
+                        b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
+                        + jpeg + b"\r\n"
+                    )
+                time.sleep(0.1)
+
+        return StreamingResponse(
+            frames(),
+            media_type=f"multipart/x-mixed-replace; boundary={PREVIEW_BOUNDARY}",
+        )
 
     @app.get("/api/recap")
     def api_recap():
