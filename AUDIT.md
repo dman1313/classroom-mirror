@@ -166,6 +166,12 @@ Windows and prioritise the Windows camera increment (P2), or (b) make macOS the
 first beta since its camera slice already runs, and downgrade Windows to
 "next." Write the decision in `README.md`. Everything below depends on it.
 
+**Decided 2026-09-06 — option (b): macOS is the first beta; Windows is next
+(deprioritised, not abandoned).** Rationale: the macOS camera slice already
+runs, so it is the fastest path to a real beta. The decision is now stated in
+`README.md` ("Current implementation status") and `V2-DELTA.md` (dated update
+note). P2 below now targets the Windows increment as the follow-on work.
+
 ### P2 — Finish one real camera increment on the chosen platform *(bounded)*
 Implement the five missing acceptance tests and the code they cover:
 `V2-T1-02/03/04/05/08` (device inventory selects a non-default index; clear
