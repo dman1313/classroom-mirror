@@ -24,7 +24,15 @@ select { font:inherit; padding:.4rem; }
 .banner { background:#2a2416; border:1px solid var(--yellow); padding:.8rem 1rem; border-radius:10px; }
 .preview { margin:1rem 0; }
 .preview h2 { font-size:1.1rem; margin:0 0 .4rem; }
-.preview img { width:100%; max-width:44rem; border:1px solid var(--line); border-radius:12px; background:#000; display:block; }
+.preview .stage { position:relative; width:100%; max-width:44rem; min-height:20rem;
+        border:1px solid var(--line); border-radius:12px; background:#000; overflow:hidden; }
+.preview img { display:block; width:100%; max-width:44rem; min-height:20rem; max-height:70vh;
+        object-fit:contain; background:#000; }
+.preview .status { position:absolute; inset:0; display:flex; align-items:center;
+        justify-content:center; text-align:center; padding:1rem; color:var(--mute);
+        background:rgba(15,20,25,.75); }
+.preview .status.err { color:#f2b8b8; }
+.preview .status.hidden { display:none; }
 .preview .mute { margin:.3rem 0 0; }
 """
 
@@ -96,21 +104,64 @@ def live_page() -> str:
         </div>
         <section class="preview">
           <h2>Live camera (teacher only)</h2>
-          <img id="preview" alt="Live camera (teacher only)">
-          <p class="mute">Shown live to the teacher only. Frames are never saved to disk.</p>
+          <div class="stage">
+            <img id="preview" alt="Live camera (teacher only)">
+            <div class="status" id="previewStatus">Connecting to camera…</div>
+          </div>
+          <p class="mute">Green boxes mark movement. Shown live to the teacher only.
+          Frames are never saved to disk.</p>
         </section>
         <div class="grid" id="grid"></div>
         <script>
         const grid = document.getElementById('grid');
         const copy = document.getElementById('copy');
         const preview = document.getElementById('preview');
-        function startPreview() { preview.src = '/api/preview?ts=' + Date.now(); }
-        preview.onerror = () => { setTimeout(startPreview, 1000); };
-        startPreview();
+        const previewStatus = document.getElementById('previewStatus');
+        let previewOk = false;
+        let cameraError = '';
+        let stopped = false;
+
+        function setStatus(text, isError) {
+          if (!text) {
+            previewStatus.className = 'status hidden';
+            previewStatus.textContent = '';
+          } else {
+            previewStatus.className = 'status' + (isError ? ' err' : '');
+            previewStatus.textContent = text;
+          }
+        }
+
+        // Poll a single JPEG (Safari/Chrome-friendly) instead of MJPEG.
+        let inflight = false;
+        function pollPreview() {
+          if (stopped || inflight) return;
+          inflight = true;
+          const img = new Image();
+          img.onload = () => {
+            inflight = false;
+            preview.src = img.src;
+            previewOk = true;
+            if (!cameraError) setStatus('', false);
+          };
+          img.onerror = () => { inflight = false; };
+          img.src = '/api/preview.jpg?ts=' + Date.now();
+        }
+
         async function tick() {
-          const r = await fetch('/api/state');
-          const j = await r.json();
+          let j;
+          try {
+            const r = await fetch('/api/state');
+            j = await r.json();
+          } catch (e) { return; }
           copy.textContent = j.support_copy || '';
+          cameraError = j.error || '';
+          if (cameraError) {
+            setStatus(cameraError, true);
+          } else if (!previewOk) {
+            setStatus('Waiting for the camera image…', false);
+          } else {
+            setStatus('', false);
+          }
           grid.innerHTML = '';
           if (j.hidden) {
             grid.innerHTML = '<p class="mute">Numbers hidden.</p>';
@@ -130,12 +181,14 @@ def live_page() -> str:
           tick();
         };
         document.getElementById('stop').onclick = async () => {
-          preview.onerror = null;
+          stopped = true;
           preview.removeAttribute('src');
           const r = await fetch('/api/stop', {method:'POST'});
           if (r.ok) location.href = '/recap';
         };
+        setInterval(pollPreview, 100);
         setInterval(tick, 700);
+        pollPreview();
         tick();
         </script>
         """,
