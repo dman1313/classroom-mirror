@@ -5,15 +5,25 @@ from __future__ import annotations
 import threading
 import time
 
-from .engine import Detection, SessionEngine
-from .identity import vector_from_gray
-from .vision import crop_gray, detect_faces_bgr
+from v2_runtime.camera import CameraUnavailable, CaptureFactory, open_camera, read_memory_frame
+
+from .engine import SessionEngine
+from .vision import PoseVision, pose_stack_error
 
 
 class CaptureLoop:
-    def __init__(self, engine: SessionEngine, camera_index: int):
+    def __init__(
+        self,
+        engine: SessionEngine,
+        camera_index: int,
+        *,
+        capture_factory: CaptureFactory | None = None,
+        vision: PoseVision | None = None,
+    ):
         self.engine = engine
         self.camera_index = camera_index
+        self._capture_factory = capture_factory
+        self.vision = vision or PoseVision()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.error: str | None = None
@@ -28,30 +38,27 @@ class CaptureLoop:
             self._thread.join(timeout=3)
 
     def _run(self) -> None:
-        import cv2
-
-        cap = cv2.VideoCapture(self.camera_index)
+        capture = None
         try:
-            if not cap.isOpened():
-                self.error = f"Camera {self.camera_index} could not be opened."
-                return
+            if self.vision._detector is None:
+                missing = pose_stack_error()
+                if missing:
+                    self.error = missing
+                    return
+            capture = open_camera(
+                self.camera_index,
+                capture_factory=self._capture_factory,
+            )
             while not self._stop.is_set():
-                ok, frame = cap.read()
-                if not ok or frame is None:
-                    self.error = f"Camera {self.camera_index} stopped sending frames."
-                    break
-                detections: list[Detection] = []
-                for hit in detect_faces_bgr(frame):
-                    gray = crop_gray(frame, hit)
-                    if gray is None:
-                        continue
-                    h, w = frame.shape[:2]
-                    bbox = (hit.x / w, hit.y / h, hit.w / w, hit.h / h)
-                    detections.append(
-                        Detection(bbox=bbox, vector=vector_from_gray(gray), person=None)
-                    )
+                frame = read_memory_frame(capture, self.camera_index)
+                detections = self.vision.detections_from_frame(frame)
                 self.engine.ingest(time.monotonic(), detections)
                 del frame
                 time.sleep(0.05)
+        except CameraUnavailable as exc:
+            self.error = str(exc)
+        except Exception as exc:
+            self.error = str(exc)
         finally:
-            cap.release()
+            if capture is not None:
+                capture.release()

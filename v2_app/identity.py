@@ -130,15 +130,15 @@ class IdentityBook:
             book.identities[ident.number] = ident
         return book
 
-    def save_wrapped(self, path, key: bytes) -> None:
+    def save_wrapped(self, path, key: bytes | None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(crypto.wrap(self.dump(), key))
+        path.write_bytes(crypto.seal(self.dump(), key))
 
     @classmethod
-    def load_wrapped(cls, path, key: bytes) -> IdentityBook:
+    def load_wrapped(cls, path, key: bytes | None) -> IdentityBook:
         if not path.is_file():
             return cls()
-        return cls.load(crypto.unwrap(path.read_bytes(), key))
+        return cls.load(crypto.unseal(path.read_bytes(), key))
 
 
 def _blend(old: list[float], new: list[float], rate: float = 0.15) -> list[float]:

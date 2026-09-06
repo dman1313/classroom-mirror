@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from .crypto import load_or_create_key
+from .crypto import load_or_create_key, uses_dpapi
 from .identity import IdentityBook
 from .paths import ensure_layout
 
@@ -39,15 +39,19 @@ class Store:
         self.db_path = self.root / "state" / "classroom-mirror.sqlite3"
         self.key_path = self.root / "config" / "template.key"
         self.book_path = self.root / "state" / "identities.bin"
-        self._conn = sqlite3.connect(self.db_path)
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.executescript(SCHEMA)
         self._assert_schema()
-        self.key = load_or_create_key(self.key_path)
+        # Windows DPAPI is current-user scoped, so the wrap key is not stored
+        # beside the database. Other hosts keep a 600 HMAC key in config/.
+        self.key = None if uses_dpapi() else load_or_create_key(self.key_path)
         self.book = IdentityBook.load_wrapped(self.book_path, self.key)
 
     def _assert_schema(self) -> None:
         rows = self._conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         for (table,) in rows:
+            if str(table).startswith("sqlite_"):
+                continue
             cols = [
                 r[1].lower()
                 for r in self._conn.execute(f"PRAGMA table_info({table})").fetchall()

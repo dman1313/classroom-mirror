@@ -108,10 +108,14 @@ def main(argv=None) -> int:
                 print(f"  {row}")
             return 0
         if not args.smoke_test:
-            from .teacher_ui import serve_teacher_ui
+            from v2_app.server import serve as serve_product
+            from v2_app.vision import pose_stack_error
 
-            print(f"Teacher-only camera setup: http://{LOOPBACK_HOST}:{args.port}")
-            serve_teacher_ui(host=args.host, port=args.port)
+            missing = pose_stack_error()
+            if missing:
+                raise RuntimeError(missing)
+            print(f"Teacher-only dashboard: http://{LOOPBACK_HOST}:{args.port}")
+            serve_product(args.camera_index, host=args.host, port=args.port)
             return 0
         if args.camera_index is None:
             raise ValueError("--camera-index is required for --smoke-test")

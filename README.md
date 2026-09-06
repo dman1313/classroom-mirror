@@ -2,7 +2,7 @@
 
 Classroom Mirror V2 is a local-only teacher support tool for **Windows and
 macOS teacher-desk laptops with a selectable USB webcam**. The private teacher
-dashboard will use anonymous sticky face numbers, High/Low sensitivity chosen
+dashboard uses anonymous sticky face numbers, High/Low sensitivity chosen
 before Start, yellow then red movement/fidget cues, and an end-of-class recap.
 
 Students never see the dashboard, flags, or numbers. Names, stored face images,
@@ -11,9 +11,16 @@ not part of the current implementation work. The first beta is adults only.
 
 ## Current implementation status
 
-The accepted V2 plan is reconciled with this repository. The first shared V2
-camera runtime and macOS install/run path are implemented; later anonymous-ID,
-sensitivity, alert, and recap slices are not yet implemented. Start with:
+The accepted V2 plan is reconciled with this repository. Shared camera runtime
+(Windows T1 + macOS), YOLO11 pose, sticky anonymous numbers, High/Low
+sensitivity, yellow-then-red movement cues, and the teacher-only live/recap
+dashboard are implemented. Adult beta only.
+
+The teacher dashboard needs the pose stack from `./install.sh` (ultralytics +
+local `yolo11n-pose.pt`). The macOS camera-slice installer
+(`./install-v2-mac.sh`) stays camera-only and does not download pose weights.
+
+Start with:
 
 - [V2-DELTA.md](V2-DELTA.md) — contract conflict, repository inventory, exact
   acceptance tests and commands, and the bounded T1 implementation slice.
@@ -30,8 +37,14 @@ On macOS with Python 3.11:
 ```
 
 This V2 launcher inventories local cameras, requires an explicit index, reads
-frames in memory for a bounded connection check, and serves only on
-`127.0.0.1`. The historical `run.command` remains V1 evidence.
+frames in memory for a bounded connection check, then opens the teacher-only
+dashboard on `127.0.0.1`. YOLO11 pose supplies in-memory body keypoints;
+anonymous numbers are local templates, never names. The historical
+`run.command` remains V1 evidence.
+
+Double-click `./run-v2.command` (or run it with no flags) opens the teacher
+dashboard using `.venv` when that pose install exists. Camera inventory and
+`--smoke-test` still use `.venv-mac-v2`.
 
 Run the dependency-free T0 readiness check with Python 3.11:
 
@@ -39,10 +52,18 @@ Run the dependency-free T0 readiness check with Python 3.11:
 python check-v2.py --stage t0
 ```
 
-The T1 gate intentionally fails closed until the Windows runtime suite exists:
+On Windows with the project `.venv`:
+
+```bat
+.\run.bat --smoke-test --camera-index 1 --seconds 10
+.\run.bat
+```
+
+The T1 gate requires an enumerated camera index. Camera-free product tests:
 
 ```sh
-python check-v2.py --stage t1 --camera-index 1
+python check-v2.py --stage t0
+python -m pytest -q v2_tests
 ```
 
 ## Historical V1 evidence

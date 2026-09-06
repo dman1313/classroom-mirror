@@ -18,11 +18,14 @@ class SensitivityProfile:
     recover_hold: float  # seconds below threshold before dropping a band
 
 
+# High/Low share one speed floor. High only shortens yellow/red/recover timing.
+_SPEED_THRESHOLD = 0.09
+
 PROFILES = {
     "low": SensitivityProfile(
         key="low",
         version=PROFILE_VERSION,
-        speed_threshold=0.09,
+        speed_threshold=_SPEED_THRESHOLD,
         yellow_hold=8.0,
         red_hold=16.0,
         recover_hold=4.0,
@@ -30,7 +33,7 @@ PROFILES = {
     "high": SensitivityProfile(
         key="high",
         version=PROFILE_VERSION,
-        speed_threshold=0.045,
+        speed_threshold=_SPEED_THRESHOLD,
         yellow_hold=3.0,
         red_hold=7.0,
         recover_hold=2.0,

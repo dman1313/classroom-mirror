@@ -310,8 +310,10 @@ def test_runtime_file_writes_are_allowlisted(tmp_path):
         "state/classroom-mirror.sqlite3",
         "state/classroom-mirror.sqlite3-wal",
         "state/classroom-mirror.sqlite3-shm",
+        "state/identities.bin",
         "logs/runtime.log",
         "config/runtime.json",
+        "config/template.key",
     }
     documentation = (ROOT / "WINDOWS-RUNTIME-POLICY.md").read_text(encoding="utf-8")
     for relative in expected:
@@ -396,20 +398,8 @@ def test_t1_result_rejects_skips_and_empty_collection(tmp_path):
     assert outcomes == {"skip": 1, "xfail": 1, "failure": 1, "pass": 0}
 
     present, missing = runner.inspect_t1_acceptance_tests(Path(__file__))
-    assert present == {
-        "V2-T1-01",
-        "V2-T1-06",
-        "V2-T1-07",
-        "V2-T1-09",
-        "V2-T1-10",
-    }
-    assert missing == {
-        "V2-T1-02",
-        "V2-T1-03",
-        "V2-T1-04",
-        "V2-T1-05",
-        "V2-T1-08",
-    }
+    assert present == set(runner.REQUIRED_T1_TESTS)
+    assert missing == set()
 
 
 def test_run_bat_foundation_fails_closed_until_camera_increment():
@@ -434,7 +424,13 @@ def test_run_bat_smoke_uses_selected_camera_and_exits():
 
     def fake_health(index, *, host):
         health_calls.append((index, host))
-        return {"ok": True, "camera_index": index, "host": host, "stopped": True}
+        return {
+            "ok": True,
+            "camera_index": index,
+            "host": host,
+            "stopped": True,
+            "outbound_attempts": 0,
+        }
 
     output = StringIO()
     with patch.object(launcher, "smoke_camera", fake_smoke), patch.object(

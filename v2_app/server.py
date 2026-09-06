@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from v2_runtime.camera import inventory_cameras
+from v2_runtime.camera import inventory_cameras, validate_camera_index
 from v2_runtime.policy import LOOPBACK_HOST, validate_bind_host
 
 from .capture import CaptureLoop
@@ -33,6 +33,7 @@ class AppState:
 def create_app(camera_index: int | None = None) -> FastAPI:
     state = AppState(camera_index)
     app = FastAPI(title="Classroom Mirror V2", docs_url=None, redoc_url=None)
+    app.state.classroom = state
 
     @app.middleware("http")
     async def headers(request, call_next):
@@ -89,7 +90,7 @@ def create_app(camera_index: int | None = None) -> FastAPI:
             return JSONResponse({"error": "A class is already running."}, status_code=400)
         try:
             payload = await request.json()
-            index = int(payload.get("camera_index"))
+            index = validate_camera_index(int(payload.get("camera_index")))
             sensitivity = str(payload.get("sensitivity") or "low")
             engine = SessionEngine(state.store.book, sensitivity)
         except (TypeError, ValueError) as exc:
@@ -134,14 +135,25 @@ def create_app(camera_index: int | None = None) -> FastAPI:
     @app.post("/api/delete/{number}")
     def api_delete(number: int):
         ok = state.store.delete_one(number)
+        if ok:
+            _drop_recap_number(state, number)
         return {"ok": ok}
 
     @app.post("/api/delete-all")
     def api_delete_all():
         n = state.store.delete_all()
+        if state.last_recap is not None:
+            state.last_recap = {**state.last_recap, "students": [], "room_raises": 0}
         return {"deleted": n}
 
     return app
+
+
+def _drop_recap_number(state: AppState, number: int) -> None:
+    if state.last_recap is None:
+        return
+    rows = [row for row in state.last_recap.get("students") or [] if row.get("number") != number]
+    state.last_recap = {**state.last_recap, "students": rows}
 
 
 def serve(camera_index: int | None = None, *, host: str = HOST, port: int = PORT,

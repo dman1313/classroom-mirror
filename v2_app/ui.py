@@ -56,18 +56,23 @@ def setup_page(cameras: list[dict], error: str | None = None) -> str:
             <option value="high">High</option>
           </select>
           <div class="row">
-            <button class="btn" type="submit">Start class</button>
+            <button class="btn" type="submit" {"disabled" if not cameras else ""}>Start class</button>
           </div>
         </form>
         <script>
         document.getElementById('start').onsubmit = async (e) => {{
           e.preventDefault();
           const fd = new FormData(e.target);
+          const index = Number(fd.get('camera_index'));
+          if (!Number.isInteger(index)) {{
+            alert('Select a USB camera before starting.');
+            return;
+          }}
           const r = await fetch('/api/start', {{
             method:'POST',
             headers:{{'Content-Type':'application/json'}},
             body: JSON.stringify({{
-              camera_index: Number(fd.get('camera_index')),
+              camera_index: index,
               sensitivity: fd.get('sensitivity')
             }})
           }});
@@ -86,6 +91,8 @@ def live_page() -> str:
         """
         <h1>Live — teacher only</h1>
         <p class="mute" id="copy"></p>
+        <p class="mute" id="raises"></p>
+        <div class="banner" id="error" hidden></div>
         <div class="row">
           <button class="btn quiet" id="hide">Hide numbers</button>
           <button class="btn stop" id="stop">Stop</button>
@@ -94,10 +101,22 @@ def live_page() -> str:
         <script>
         const grid = document.getElementById('grid');
         const copy = document.getElementById('copy');
+        const raises = document.getElementById('raises');
+        const err = document.getElementById('error');
+        const hideBtn = document.getElementById('hide');
         async function tick() {
           const r = await fetch('/api/state');
           const j = await r.json();
           copy.textContent = j.support_copy || '';
+          raises.textContent = 'Room hand-raises: ' + (j.room_raises || 0);
+          hideBtn.textContent = j.hidden ? 'Show numbers' : 'Hide numbers';
+          if (j.error) {
+            err.hidden = false;
+            err.textContent = j.error;
+          } else {
+            err.hidden = true;
+            err.textContent = '';
+          }
           grid.innerHTML = '';
           if (j.hidden) {
             grid.innerHTML = '<p class="mute">Numbers hidden.</p>';

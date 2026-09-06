@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.heuristics import HandRaiseDetector, Person, centroid_speed, hand_is_up
+from app.heuristics import HandRaiseDetector, Person, centroid_speed
 
 from .alerts import BAND_NONE, AlertState, update_alert
 from .identity import IdentityBook, MATCH_FLOOR
 from .sensitivity import SensitivityProfile, get_profile
+
+# Keep a live card through brief occlusion; the identity book is the long memory.
+LIVE_OCCLUDE_SECONDS = 8.0
+# Ignore teleport-sized gaps so a reappearance does not look like a fidget burst.
+MAX_SPEED_DT = 1.5
 
 
 @dataclass
@@ -32,14 +37,6 @@ class TrackedStudent:
     hidden: bool = False
 
 
-@dataclass
-class RecapRow:
-    number: int
-    peak_band: str
-    raises: int
-    cue: str
-
-
 class SessionEngine:
     def __init__(self, book: IdentityBook, sensitivity: str):
         self.book = book
@@ -51,10 +48,12 @@ class SessionEngine:
         self.peak_band: dict[int, str] = {}
         self.room_raises = 0
         self.frames = 0
+        self._now = 0.0
 
     def ingest(self, t: float, detections: list[Detection]) -> None:
         if self.started_at is None:
             self.started_at = t
+        self._now = t
         self.frames += 1
         seen: set[int] = set()
         for det in detections:
@@ -66,7 +65,9 @@ class SessionEngine:
             existing = self.students.get(number)
             speed = None
             if existing and existing.last_person is not None:
-                speed = centroid_speed(existing.last_person, existing.last_t, person, t)
+                dt = t - existing.last_t
+                if 0 < dt <= MAX_SPEED_DT:
+                    speed = centroid_speed(existing.last_person, existing.last_t, person, t)
             if existing is None:
                 existing = TrackedStudent(
                     number=number,
@@ -88,14 +89,15 @@ class SessionEngine:
                 existing.raises += 1
                 self.room_raises += 1
 
-        stale = [n for n, st in self.students.items() if n not in seen and t - st.last_t > 2.0]
-        for n in stale:
-            del self.students[n]
+        # Freeze unseen tracks (occlusion). Do not drop sticky numbers.
 
     def snapshot(self) -> dict:
+        now = self._now
         rows = []
         for st in sorted(self.students.values(), key=lambda s: s.number):
             if self.hidden:
+                continue
+            if now - st.last_t > LIVE_OCCLUDE_SECONDS:
                 continue
             rows.append(
                 {
