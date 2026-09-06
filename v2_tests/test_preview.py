@@ -113,7 +113,7 @@ def test_capture_publishes_inmemory_jpeg_and_clears_on_stop(monkeypatch):
 
 def test_capture_and_server_have_no_frame_write_apis():
     forbidden = ("imwrite", "videowriter")
-    for name in ("capture.py", "server.py", "vision.py"):
+    for name in ("capture.py", "server.py", "vision.py", "motion.py"):
         source = (ROOT / "v2_app" / name).read_text(encoding="utf-8").lower()
         for token in forbidden:
             assert token not in source, f"{name} must not use frame-write API {token!r}"

@@ -30,6 +30,10 @@ class TrackedStudent:
     raises: int = 0
     raise_detector: HandRaiseDetector = field(default_factory=HandRaiseDetector)
     hidden: bool = False
+    trail: list[tuple[float, float]] = field(default_factory=list)
+
+
+TRAIL_MAX = 10
 
 
 @dataclass
@@ -82,6 +86,11 @@ class SessionEngine:
             existing.last_person = person
             existing.speed = speed
             existing.match = score
+            cx = det.bbox[0] + det.bbox[2] / 2
+            cy = det.bbox[1] + det.bbox[3] / 2
+            existing.trail.append((cx, cy))
+            if len(existing.trail) > TRAIL_MAX:
+                del existing.trail[: len(existing.trail) - TRAIL_MAX]
             update_alert(existing.alert, t, speed, self.profile)
             self._bump_peak(number, existing.alert.band)
             if person.kps and existing.raise_detector.update(t, person):
@@ -91,6 +100,11 @@ class SessionEngine:
         stale = [n for n, st in self.students.items() if n not in seen and t - st.last_t > 2.0]
         for n in stale:
             del self.students[n]
+
+    def _is_moving(self, st: TrackedStudent) -> bool:
+        return st.alert.band in (BAND_YELLOW, BAND_RED) or (
+            st.speed is not None and st.speed >= self.profile.speed_threshold
+        )
 
     def snapshot(self) -> dict:
         rows = []
@@ -106,12 +120,16 @@ class SessionEngine:
                     "match": round(st.match, 3),
                 }
             )
+        people_count = len(self.students)
+        moving_count = sum(1 for st in self.students.values() if self._is_moving(st))
         return {
             "running": True,
             "hidden": self.hidden,
             "sensitivity": self.locked_profile_key,
             "profile_version": self.profile.version,
             "students": rows,
+            "people_count": people_count,
+            "moving_count": moving_count,
             "room_raises": self.room_raises,
             "frames": self.frames,
             "support_copy": "Flags are uncertain movement cues. They are not facts, grades, or discipline.",
@@ -157,15 +175,14 @@ class SessionEngine:
         """
         boxes: list[dict] = []
         for st in self.students.values():
-            moving = st.alert.band in (BAND_YELLOW, BAND_RED) or (
-                st.speed is not None and st.speed >= self.profile.speed_threshold
-            )
+            moving = self._is_moving(st)
             boxes.append(
                 {
                     "number": st.number,
                     "bbox": st.bbox,
                     "moving": moving,
                     "band": st.alert.band,
+                    "trail": list(st.trail) if moving else [],
                 }
             )
         return boxes

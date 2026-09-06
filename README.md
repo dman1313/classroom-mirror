@@ -33,6 +33,24 @@ This V2 launcher inventories local cameras, requires an explicit index, reads
 frames in memory for a bounded connection check, and serves only on
 `127.0.0.1`. The historical `run.command` remains V1 evidence.
 
+### What the teacher does on the Mac
+
+1. Run `./install-v2-mac.sh` once (creates a project-local Python environment,
+   no admin rights).
+2. Run `./run-v2.command`. When prompted, type the USB camera index it lists.
+3. The teacher dashboard opens automatically. If it does not, open
+   **http://127.0.0.1:8470** in Safari or Chrome after Start.
+4. On the setup page pick the camera, sensitivity, and a **1-minute quick test**,
+   then press **Start class**.
+5. Watch the live view: **green boxes mark whoever is moving right now**, with a
+   people-seen / moving-now count and a countdown. Press **Stop & see recap** (or
+   let the quick test auto-stop) to reach the recap.
+
+If the camera does not appear or stays black, follow the on-screen macOS
+permission steps (System Settings → Privacy & Security → Camera → enable
+Terminal, then reopen Terminal). Frames are shown only to the teacher and are
+never written to disk.
+
 Run the dependency-free T0 readiness check with Python 3.11:
 
 ```sh
