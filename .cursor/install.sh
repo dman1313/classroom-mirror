@@ -21,6 +21,7 @@ echo "== V1 pose stack (app/, tests/) =="
 "$PY" -m venv .venv
 ./.venv/bin/pip install --quiet --upgrade pip
 ./.venv/bin/pip install --quiet -r requirements.txt
+./.venv/bin/pip install --quiet -r .cursor/requirements-dev.txt
 echo "Fetching the pose model if it is not already present..."
 ./.venv/bin/python - <<'PYEOF'
 from ultralytics import YOLO, settings
@@ -33,6 +34,7 @@ echo "== V2 camera runtime (v2_runtime/) =="
 "$PY" -m venv .venv-mac-v2
 ./.venv-mac-v2/bin/pip install --quiet --upgrade pip
 ./.venv-mac-v2/bin/pip install --quiet -r requirements-v2-runtime.txt
+./.venv-mac-v2/bin/pip install --quiet -r .cursor/requirements-dev.txt
 ./.venv-mac-v2/bin/python -c 'import cv2, fastapi, uvicorn; print("V2 runtime imports ready:", cv2.__version__)'
 
 echo "Install complete."
