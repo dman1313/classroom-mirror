@@ -15,6 +15,8 @@ MATCH_FLOOR = 0.82
 TEMPLATE_SIZE = 32
 MAX_IDS = 80
 TTL_SECONDS = 30 * 24 * 3600
+# Mean-centered crops below this energy are lights/walls, not a face.
+MIN_CROP_NORM = 1.0
 
 
 @dataclass
@@ -41,8 +43,10 @@ def vector_from_gray(gray) -> list[float]:
     ]
     flat = sampled.reshape(-1)
     flat = flat - float(flat.mean())
-    norm = float(np.linalg.norm(flat)) + 1e-6
-    return (flat / norm).astype(np.float32).tolist()
+    energy = float(np.linalg.norm(flat))
+    if energy < MIN_CROP_NORM:
+        raise ValueError("low-contrast face crop")
+    return (flat / energy).astype(np.float32).tolist()
 
 
 def cosine(a: list[float], b: list[float]) -> float:
@@ -70,6 +74,8 @@ class IdentityBook:
 
     def match_or_create(self, vector: list[float], now: float) -> tuple[int, float]:
         self.expire(now)
+        if math.sqrt(sum(x * x for x in vector)) < 0.5:
+            return 0, 0.0
         best_n = None
         best_score = MATCH_FLOOR
         for ident in self.identities.values():
@@ -83,7 +89,7 @@ class IdentityBook:
             ident.vector = _blend(ident.vector, vector)
             return best_n, best_score
         if len(self.identities) >= MAX_IDS:
-            raise RuntimeError("too many anonymous identities stored")
+            return 0, 0.0
         number = self._next
         while number in self.identities:
             number += 1

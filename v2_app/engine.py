@@ -58,7 +58,7 @@ class SessionEngine:
         seen: set[int] = set()
         for det in detections:
             number, score = self.book.match_or_create(det.vector, t)
-            if score < MATCH_FLOOR:
+            if number < 1 or score < MATCH_FLOOR:
                 continue
             seen.add(number)
             person = det.person or Person(kps={}, bbox=det.bbox)

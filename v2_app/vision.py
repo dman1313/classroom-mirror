@@ -65,10 +65,14 @@ class PoseVision:
             gray = head_crop_gray(frame_bgr, person)
             if gray is None:
                 continue
+            try:
+                vector = vector_from_gray(gray)
+            except ValueError:
+                continue
             detections.append(
                 Detection(
                     bbox=person.bbox,
-                    vector=vector_from_gray(gray),
+                    vector=vector,
                     person=person,
                 )
             )

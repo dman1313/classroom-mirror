@@ -99,6 +99,32 @@ def test_sticky_id_survives_occlusion_and_later_session(tmp_path, monkeypatch):
     assert list(engine2.students) == [number]
 
 
+def test_low_contrast_crop_does_not_mint_a_new_id():
+    book = IdentityBook()
+    with pytest.raises(ValueError, match="low-contrast"):
+        vector_from_gray(np.full((64, 64), 80, dtype=np.float32))
+    number, score = book.match_or_create([0.0] * (32 * 32), 0.0)
+    assert number == 0
+    assert score == 0.0
+    assert book.identities == {}
+
+
+def test_identity_cap_skips_instead_of_crashing_the_session():
+    book = IdentityBook()
+    for seed in range(1, 81):
+        n, score = book.match_or_create(_vector(seed), float(seed))
+        assert n == seed
+        assert score == 1.0
+    extra, extra_score = book.match_or_create(_vector(900), 100.0)
+    assert extra == 0
+    assert extra_score == 0.0
+    assert len(book.identities) == 80
+    engine = SessionEngine(IdentityBook(), "low")
+    for seed in range(1, 90):
+        engine.ingest(float(seed), [Detection(bbox=(0.1, 0.1, 0.2, 0.4), vector=_vector(seed))])
+    assert len(engine.students) == 80
+
+
 def test_match_floor_rejects_a_different_person():
     book = IdentityBook()
     book.match_or_create(_vector(7), 0.0)
