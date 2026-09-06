@@ -9,6 +9,44 @@ Students never see the dashboard, flags, or numbers. Names, stored face images,
 stored video, cloud processing, automated consequences, and student trials are
 not part of the current implementation work. The first beta is adults only.
 
+## Teacher alpha: the movement dashboard
+
+The first teacher-visible V2 slice is now runnable end to end. It is the
+"movement foundation" from the accepted plan: pick a camera and a **High/Low**
+sensitivity, press **Start**, watch **anonymous position numbers** with a
+**calm / yellow / red** movement cue, **Hide** instantly for privacy, press
+**Stop**, and read a plain, uncertainty-first **recap**. It is adults only for
+this alpha.
+
+Privacy is held by construction: the browser only ever receives abstract marker
+positions and a colour — never a camera image — the service binds only to
+`127.0.0.1`, frames stay in memory, and the anonymous numbers are screen
+positions (nearest-neighbour tracking), **not** faces or biometric templates.
+
+Run it with no camera at all (synthetic movers, works headless):
+
+```sh
+python -m v2_runtime.dashboard --no-browser
+# then open http://127.0.0.1:8471 and choose "Demo movers (no camera needed)"
+```
+
+On a Mac with a USB webcam (adults only), install once then launch and pick the
+camera on the Start screen:
+
+```sh
+./install-v2-mac.sh
+./run-dashboard.command
+```
+
+A headless one-shot recap (no server, no browser) is handy for a quick check:
+
+```sh
+python -m v2_runtime.dashboard --smoke-test --source synthetic --sensitivity low
+```
+
+The movement dashboard deliberately does **not** implement face matching,
+persistence, or student use; those remain later, contract-gated slices.
+
 ## Current implementation status
 
 The accepted V2 plan is reconciled with this repository. The first shared V2
