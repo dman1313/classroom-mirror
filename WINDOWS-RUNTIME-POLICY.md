@@ -22,17 +22,20 @@ file. These are the complete non-media write paths:
 - `state/classroom-mirror.sqlite3-journal`
 - `state/classroom-mirror.sqlite3-wal`
 - `state/classroom-mirror.sqlite3-shm`
+- `state/identities.bin`
 - `logs/runtime.log`
 - `config/runtime.json`
+- `config/template.key`
 
 Image, video, crop, screenshot, audio, encoded-frame, model-download, repo,
 temporary-directory, Desktop, roaming-profile, and machine-wide writes are not
-allowed. The T1a launcher does not create even the allowlisted files; this list
-is the boundary for later V2 components.
+allowed. Anonymous templates live in `state/identities.bin`. On Windows they
+are sealed with current-user DPAPI and `config/template.key` is not created.
+On macOS/Linux the HMAC wrap key is `config/template.key` (mode 600).
 
 ## Launcher status
 
-`run.bat --smoke-test --camera-index <n> --seconds <n>` validates arguments and
-the runtime policy. It returns a nonzero `NOT RUN` result because physical
-camera open/read/release and loopback health startup belong to the following
-camera increment. It must not be recorded as a real-camera PASS.
+`run.bat --smoke-test --camera-index <n> --seconds <n>` opens the selected
+camera, reads bounded in-memory frames, checks a loopback health endpoint, and
+exits. `run.bat` with no smoke flags starts the teacher-only V2 dashboard
+(`v2_app`) on `127.0.0.1:8470`.

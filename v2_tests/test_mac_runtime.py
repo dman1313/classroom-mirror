@@ -137,6 +137,7 @@ class MacLauncherContractTests(unittest.TestCase):
         self.assertIn(".venv-mac-v2", installer)
         self.assertIn("python3.11", installer)
         self.assertIn("v2_runtime.mac_launcher", launcher)
+        self.assertIn(".venv-mac-v2", launcher)
         self.assertNotIn("app.main", launcher)
 
     def test_mac_smoke_document_names_privacy_and_hardware_outcomes(self):

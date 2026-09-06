@@ -17,8 +17,10 @@ _ALLOWLISTED_FILES = frozenset(
         PurePosixPath("state/classroom-mirror.sqlite3-journal"),
         PurePosixPath("state/classroom-mirror.sqlite3-shm"),
         PurePosixPath("state/classroom-mirror.sqlite3-wal"),
+        PurePosixPath("state/identities.bin"),
         PurePosixPath("logs/runtime.log"),
         PurePosixPath("config/runtime.json"),
+        PurePosixPath("config/template.key"),
     }
 )
 _TEXT_FILES = frozenset(

@@ -83,18 +83,18 @@ def create_app(camera_index: int):
     return app
 
 
-def serve(camera_index: int, *, host: str = LOOPBACK_HOST, port: int = DEFAULT_PORT,
+def serve(camera_index: int | None, *, host: str = LOOPBACK_HOST, port: int = DEFAULT_PORT,
           open_browser: bool = True) -> None:
-    import uvicorn
+    from v2_app.server import serve as serve_product
+    from v2_app.vision import pose_stack_error
 
     validate_bind_host(host)
     if not 1024 <= port <= 65535:
         raise ValueError("port must be between 1024 and 65535")
-    if open_browser:
-        import webbrowser
-
-        webbrowser.open(f"http://{host}:{port}")
-    uvicorn.run(create_app(camera_index), host=host, port=port, log_level="warning")
+    missing = pose_stack_error()
+    if missing:
+        raise RuntimeError(missing)
+    serve_product(camera_index, host=host, port=port, open_browser=open_browser)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -116,21 +116,26 @@ def main(argv: list[str] | None = None) -> int:
         validate_bind_host(args.host)
         if args.list_cameras:
             return 0 if _print_inventory(args.max_index) else 3
+        if args.smoke_test:
+            index = (
+                validate_camera_index(args.camera_index)
+                if args.camera_index is not None
+                else _choose_camera(args.max_index)
+            )
+            result = smoke_camera(index, seconds=args.seconds)
+            print(
+                "Camera smoke PASS: "
+                f"index={result.camera_index} backend={result.backend} "
+                f"frames={result.frame_count} elapsed={result.elapsed_seconds:.2f}s "
+                f"host={LOOPBACK_HOST} frame_writes=0"
+            )
+            return 0
         index = (
             validate_camera_index(args.camera_index)
             if args.camera_index is not None
-            else _choose_camera(args.max_index)
+            else None
         )
-        result = smoke_camera(index, seconds=args.seconds)
-        print(
-            "Camera smoke PASS: "
-            f"index={result.camera_index} backend={result.backend} "
-            f"frames={result.frame_count} elapsed={result.elapsed_seconds:.2f}s "
-            f"host={LOOPBACK_HOST} frame_writes=0"
-        )
-        if args.smoke_test:
-            return 0
-        print(f"Starting V2 local camera page at http://{LOOPBACK_HOST}:{args.port}")
+        print(f"Teacher-only dashboard: http://{LOOPBACK_HOST}:{args.port}")
         serve(index, host=args.host, port=args.port, open_browser=not args.no_browser)
         return 0
     except CameraUnavailable as exc:
@@ -140,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             "Camera, enable Terminal, then quit and reopen Terminal."
         )
         return 2
-    except (PolicyViolation, ValueError) as exc:
+    except (PolicyViolation, ValueError, RuntimeError) as exc:
         print(f"Camera runtime FAIL: {exc}")
         return 2
 
