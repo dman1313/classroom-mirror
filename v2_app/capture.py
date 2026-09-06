@@ -7,7 +7,7 @@ import time
 
 from .engine import Detection, SessionEngine
 from .identity import vector_from_gray
-from .vision import crop_gray, detect_faces_bgr
+from .vision import crop_gray, detect_faces_bgr, draw_overlay_boxes
 
 
 class CaptureLoop:
@@ -26,6 +26,22 @@ class CaptureLoop:
         """Return the most recent frame as in-memory JPEG bytes (or None)."""
         with self._frame_lock:
             return self._latest_jpeg
+
+    def _annotate(self, frame):
+        """Return a copy of ``frame`` with movement overlays drawn.
+
+        Falls back to the original frame if the engine cannot supply boxes
+        (e.g. a stub engine in tests), so the preview always shows video.
+        """
+        overlay = getattr(self.engine, "overlay_boxes", None)
+        if not callable(overlay):
+            return frame
+        boxes = overlay()
+        if not boxes:
+            return frame
+        annotated = frame.copy()
+        show_numbers = not getattr(self.engine, "hidden", False)
+        return draw_overlay_boxes(annotated, boxes, show_numbers=show_numbers)
 
     def _publish_frame(self, frame) -> None:
         import cv2
@@ -62,7 +78,6 @@ class CaptureLoop:
                 if not ok or frame is None:
                     self.error = f"Camera {self.camera_index} stopped sending frames."
                     break
-                self._publish_frame(frame)
                 detections: list[Detection] = []
                 for hit in detect_faces_bgr(frame):
                     gray = crop_gray(frame, hit)
@@ -74,6 +89,9 @@ class CaptureLoop:
                         Detection(bbox=bbox, vector=vector_from_gray(gray), person=None)
                     )
                 self.engine.ingest(time.monotonic(), detections)
+                # Annotate a throwaway copy so movement is visible in the
+                # teacher preview. The annotated frame is never stored.
+                self._publish_frame(self._annotate(frame))
                 del frame
                 time.sleep(0.05)
         finally:

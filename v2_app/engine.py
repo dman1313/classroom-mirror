@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from app.heuristics import HandRaiseDetector, Person, centroid_speed, hand_is_up
 
-from .alerts import BAND_NONE, AlertState, update_alert
+from .alerts import BAND_NONE, BAND_RED, BAND_YELLOW, AlertState, update_alert
 from .identity import IdentityBook, MATCH_FLOOR
 from .sensitivity import SensitivityProfile, get_profile
 
@@ -147,6 +147,28 @@ class SessionEngine:
                 "or an automated consequence."
             ),
         }
+
+    def overlay_boxes(self) -> list[dict]:
+        """Boxes for the teacher-only preview overlay.
+
+        A person is flagged as ``moving`` when the alert logic has raised a
+        yellow/red band OR their instantaneous centroid speed is at or above
+        the locked sensitivity threshold. The preview draws those in green.
+        """
+        boxes: list[dict] = []
+        for st in self.students.values():
+            moving = st.alert.band in (BAND_YELLOW, BAND_RED) or (
+                st.speed is not None and st.speed >= self.profile.speed_threshold
+            )
+            boxes.append(
+                {
+                    "number": st.number,
+                    "bbox": st.bbox,
+                    "moving": moving,
+                    "band": st.alert.band,
+                }
+            )
+        return boxes
 
     def _bump_peak(self, number: int, band: str) -> None:
         order = {BAND_NONE: 0, "yellow": 1, "red": 2}

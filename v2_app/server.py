@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import time
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from v2_runtime.camera import inventory_cameras
 from v2_runtime.policy import LOOPBACK_HOST, validate_bind_host
@@ -80,6 +80,17 @@ def create_app(camera_index: int | None = None) -> FastAPI:
         if state.loop and state.loop.error:
             snap["error"] = state.loop.error
         return snap
+
+    @app.get("/api/preview.jpg")
+    def api_preview_jpg():
+        # Safari/Chrome-friendly single JPEG. The live page polls this
+        # instead of relying on multipart MJPEG in an <img>. RAM only.
+        if state.engine is None or state.loop is None:
+            return JSONResponse({"error": "not running"}, status_code=400)
+        jpeg = state.loop.latest_jpeg()
+        if not jpeg:
+            return JSONResponse({"error": "no frame yet"}, status_code=404)
+        return Response(content=jpeg, media_type="image/jpeg")
 
     @app.get("/api/preview")
     def api_preview():

@@ -113,7 +113,7 @@ def test_capture_publishes_inmemory_jpeg_and_clears_on_stop(monkeypatch):
 
 def test_capture_and_server_have_no_frame_write_apis():
     forbidden = ("imwrite", "videowriter")
-    for name in ("capture.py", "server.py"):
+    for name in ("capture.py", "server.py", "vision.py"):
         source = (ROOT / "v2_app" / name).read_text(encoding="utf-8").lower()
         for token in forbidden:
             assert token not in source, f"{name} must not use frame-write API {token!r}"
@@ -183,6 +183,101 @@ def _post(port, path, payload):
     resp.read()
     conn.close()
     return resp
+
+
+def test_preview_jpg_requires_running_session(monkeypatch, tmp_path):
+    monkeypatch.setenv("CLASSROOM_MIRROR_DATA_DIR", str(tmp_path / "data"))
+    from fastapi.testclient import TestClient
+
+    from v2_app.server import create_app
+
+    client = TestClient(create_app())
+    r = client.get("/api/preview.jpg")
+    assert r.status_code == 400
+    assert r.json()["error"] == "not running"
+
+
+def test_preview_jpg_returns_single_inmemory_jpeg_when_running(monkeypatch, tmp_path):
+    monkeypatch.setenv("CLASSROOM_MIRROR_DATA_DIR", str(tmp_path / "data"))
+    frame = np.full((48, 64, 3), 200, dtype=np.uint8)
+    _install_fake_camera(monkeypatch, frame)
+
+    from fastapi.testclient import TestClient
+
+    from v2_app.server import create_app
+
+    with TestClient(create_app()) as client:
+        started = client.post(
+            "/api/start", json={"camera_index": 0, "sensitivity": "low"}
+        )
+        assert started.status_code == 200
+
+        def _fetch_jpeg():
+            resp = client.get("/api/preview.jpg")
+            return resp if resp.status_code == 200 else None
+
+        resp = _wait_for(_fetch_jpeg)
+        assert resp is not None, "single-JPEG endpoint never served a frame"
+        assert resp.headers["Content-Type"] == "image/jpeg"
+        assert resp.headers["Cache-Control"] == "no-store"
+        body = resp.content
+        assert body.startswith(JPEG_SOI) and body.endswith(JPEG_EOI)
+
+        client.post("/api/stop", json={})
+
+
+def test_draw_overlay_boxes_marks_movement_green():
+    import cv2
+
+    from v2_app.vision import draw_overlay_boxes
+
+    frame = np.full((80, 80, 3), 30, dtype=np.uint8)
+    draw_overlay_boxes(
+        frame,
+        [
+            {"number": 3, "bbox": (0.2, 0.2, 0.4, 0.4), "moving": True},
+            {"number": 5, "bbox": (0.6, 0.6, 0.2, 0.2), "moving": False},
+        ],
+    )
+    # A green pixel: high green channel, low red/blue (BGR order).
+    green = (frame[:, :, 1] > 120) & (frame[:, :, 0] < 90) & (frame[:, :, 2] < 90)
+    assert green.any(), "moving box should draw green pixels"
+    _ = cv2  # ensure cv2 import path is exercised
+
+
+def test_capture_publishes_jpeg_with_green_movement_overlay(monkeypatch):
+    import cv2
+
+    from v2_app.capture import CaptureLoop
+
+    frame = np.full((96, 128, 3), 40, dtype=np.uint8)
+    _install_fake_camera(monkeypatch, frame)
+
+    class _MovingEngine:
+        hidden = False
+
+        def ingest(self, *args, **kwargs):
+            pass
+
+        def overlay_boxes(self):
+            return [{"number": 1, "bbox": (0.25, 0.25, 0.5, 0.5), "moving": True}]
+
+    loop = CaptureLoop(_MovingEngine(), camera_index=0)
+    loop.start()
+    try:
+        jpeg = _wait_for(loop.latest_jpeg)
+        assert jpeg is not None
+        decoded = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+        assert decoded is not None
+        green = (
+            (decoded[:, :, 1] > 110)
+            & (decoded[:, :, 0] < 90)
+            & (decoded[:, :, 2] < 90)
+        )
+        assert green.any(), "published preview JPEG should contain green movement overlay"
+    finally:
+        loop.stop()
+    assert loop.latest_jpeg() is None
 
 
 def test_schema_guard_skips_sqlite_internal_but_blocks_forbidden(tmp_path, monkeypatch):
