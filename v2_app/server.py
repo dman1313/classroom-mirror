@@ -31,6 +31,8 @@ class AppState:
         self.session_id: int | None = None
         self.last_recap: dict | None = None
         self.error: str | None = None
+        self.duration_minutes: int = 0
+        self.started_monotonic: float | None = None
 
 
 def create_app(camera_index: int | None = None) -> FastAPI:
@@ -77,8 +79,16 @@ def create_app(camera_index: int | None = None) -> FastAPI:
         if state.engine is None:
             return JSONResponse({"error": "not running"}, status_code=400)
         snap = state.engine.snapshot()
-        if state.loop and state.loop.error:
-            snap["error"] = state.loop.error
+        if state.loop:
+            # Frame-difference motion is the reliable movement count at
+            # classroom distance; surface it alongside face-based counts.
+            snap["moving_regions"] = state.loop.motion_count
+            snap["movements"] = max(snap.get("moving_count", 0), state.loop.motion_count)
+            if state.loop.error:
+                snap["error"] = state.loop.error
+        snap["duration_minutes"] = state.duration_minutes
+        if state.started_monotonic is not None:
+            snap["seconds_elapsed"] = round(time.monotonic() - state.started_monotonic, 1)
         return snap
 
     @app.get("/api/preview.jpg")
@@ -132,12 +142,17 @@ def create_app(camera_index: int | None = None) -> FastAPI:
             payload = await request.json()
             index = int(payload.get("camera_index"))
             sensitivity = str(payload.get("sensitivity") or "low")
+            duration = int(payload.get("duration_minutes") or 0)
+            if duration < 0:
+                raise ValueError("duration_minutes must be zero or positive")
             engine = SessionEngine(state.store.book, sensitivity)
         except (TypeError, ValueError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         loop = CaptureLoop(engine, index)
         state.engine = engine
         state.loop = loop
+        state.duration_minutes = duration
+        state.started_monotonic = time.monotonic()
         state.last_recap = None
         state.session_id = state.store.record_session(
             datetime.now(timezone.utc).isoformat(), engine.locked_profile_key
@@ -170,6 +185,8 @@ def create_app(camera_index: int | None = None) -> FastAPI:
         state.engine = None
         state.loop = None
         state.session_id = None
+        state.started_monotonic = None
+        state.duration_minutes = 0
         return {"ok": True}
 
     @app.post("/api/delete/{number}")

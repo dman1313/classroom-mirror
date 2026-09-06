@@ -34,6 +34,32 @@ select { font:inherit; padding:.4rem; }
 .preview .status.err { color:#f2b8b8; }
 .preview .status.hidden { display:none; }
 .preview .mute { margin:.3rem 0 0; }
+.legend { display:flex; align-items:center; gap:.5rem; margin:.5rem 0; flex-wrap:wrap; }
+.swatch { display:inline-block; width:1.1rem; height:1.1rem; border-radius:4px; background:#28ff28; border:1px solid #1a1; }
+.counts { display:flex; gap:1rem; flex-wrap:wrap; margin:.6rem 0 0; }
+.stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:.6rem 1rem; min-width:7rem; text-align:center; }
+.stat .big { font-size:2rem; font-weight:700; }
+.stat .lbl { color:var(--mute); font-size:.9rem; }
+.stat.timer .big { color:var(--ok); }
+.hint { color:var(--mute); font-size:.95rem; }
+.banner.err { background:#2a1616; border-color:var(--red); color:#f2b8b8; }
+.perm { margin:.6rem 0 0; }
+.perm summary { cursor:pointer; color:var(--mute); }
+.perm ol { margin:.4rem 0 0 1.1rem; }
+"""
+
+
+# Shared macOS camera-permission guidance, matching MAC-V2-SMOKE.md.
+MAC_PERMISSION_HTML = """
+<details class="perm">
+  <summary>Camera not working? macOS permission steps</summary>
+  <ol>
+    <li>Open <strong>System Settings &rarr; Privacy &amp; Security &rarr; Camera</strong>.</li>
+    <li>Turn on <strong>Terminal</strong> (the app you used to Start).</li>
+    <li>Quit Terminal completely, reopen it, and Start again.</li>
+    <li>Close FaceTime, Zoom, Teams, or Photo Booth if they are open.</li>
+  </ol>
+</details>
 """
 
 
@@ -46,11 +72,20 @@ def _page(title: str, body: str) -> str:
 
 
 def setup_page(cameras: list[dict], error: str | None = None) -> str:
-    opts = "".join(
-        f"<option value='{c['index']}'>Camera {c['index']} ({escape(c['backend'])})</option>"
-        for c in cameras
-    ) or "<option value=''>No camera found</option>"
-    banner = f"<div class='banner'>{escape(error)}</div>" if error else ""
+    if cameras:
+        opts = "".join(
+            f"<option value='{c['index']}'>Camera {c['index']} ({escape(c['backend'])})</option>"
+            for c in cameras
+        )
+        no_camera = ""
+    else:
+        opts = "<option value=''>No camera found</option>"
+        no_camera = (
+            "<p class='hint'>No camera was found. Plug in the USB camera, then "
+            "reload this page. If it still does not appear, check the macOS "
+            "permission steps below.</p>"
+        )
+    banner = f"<div class='banner err'>{escape(error)}</div>" if error else ""
     return _page(
         "Classroom Mirror",
         f"""
@@ -62,25 +97,38 @@ def setup_page(cameras: list[dict], error: str | None = None) -> str:
         <form id="start">
           <label>Camera</label>
           <select name="camera_index">{opts}</select>
+          {no_camera}
+          <p class="hint">Not sure which camera? Unplug the USB camera and reload,
+          then plug it in and reload — the newly added number is the USB camera.</p>
           <label>Sensitivity</label>
           <select name="sensitivity">
-            <option value="low">Low</option>
-            <option value="high">High</option>
+            <option value="low">Low — fewer flags (recommended to start)</option>
+            <option value="high">High — flags smaller movements</option>
+          </select>
+          <label>Session length</label>
+          <select name="duration_minutes">
+            <option value="1">1-minute quick test (recommended)</option>
+            <option value="5">5 minutes</option>
+            <option value="0">Full class — no auto-stop</option>
           </select>
           <div class="row">
             <button class="btn" type="submit">Start class</button>
           </div>
         </form>
+        {MAC_PERMISSION_HTML}
         <script>
         document.getElementById('start').onsubmit = async (e) => {{
           e.preventDefault();
           const fd = new FormData(e.target);
+          const cam = fd.get('camera_index');
+          if (cam === '' || cam === null) {{ alert('No camera to start. Plug in the USB camera and reload.'); return; }}
           const r = await fetch('/api/start', {{
             method:'POST',
             headers:{{'Content-Type':'application/json'}},
             body: JSON.stringify({{
-              camera_index: Number(fd.get('camera_index')),
-              sensitivity: fd.get('sensitivity')
+              camera_index: Number(cam),
+              sensitivity: fd.get('sensitivity'),
+              duration_minutes: Number(fd.get('duration_minutes'))
             }})
           }});
           const j = await r.json();
@@ -100,16 +148,26 @@ def live_page() -> str:
         <p class="mute" id="copy"></p>
         <div class="row">
           <button class="btn quiet" id="hide">Hide numbers</button>
-          <button class="btn stop" id="stop">Stop</button>
+          <button class="btn stop" id="stop">Stop &amp; see recap</button>
         </div>
         <section class="preview">
           <h2>Live camera (teacher only)</h2>
+          <div class="legend">
+            <span class="swatch"></span>
+            <strong>Green box = moving right now.</strong>
+            <span class="hint">Yellow / red cards below mean more sustained movement (uncertain).</span>
+          </div>
           <div class="stage">
             <img id="preview" alt="Live camera (teacher only)">
             <div class="status" id="previewStatus">Connecting to camera…</div>
           </div>
-          <p class="mute">Green boxes mark movement. Shown live to the teacher only.
-          Frames are never saved to disk.</p>
+          <div class="counts">
+            <div class="stat"><div class="big" id="peopleCount">0</div><div class="lbl">people seen</div></div>
+            <div class="stat"><div class="big" id="movingCount">0</div><div class="lbl">moving now</div></div>
+            <div class="stat timer" id="timerStat" hidden><div class="big" id="timer">--:--</div><div class="lbl">time left</div></div>
+          </div>
+          <p class="mute">Shown live to the teacher only. Frames are never saved to disk.</p>
+          <div id="permHelp" hidden>""" + MAC_PERMISSION_HTML + """</div>
         </section>
         <div class="grid" id="grid"></div>
         <script>
@@ -117,9 +175,18 @@ def live_page() -> str:
         const copy = document.getElementById('copy');
         const preview = document.getElementById('preview');
         const previewStatus = document.getElementById('previewStatus');
+        const peopleCount = document.getElementById('peopleCount');
+        const movingCount = document.getElementById('movingCount');
+        const timerStat = document.getElementById('timerStat');
+        const timerEl = document.getElementById('timer');
+        const permHelp = document.getElementById('permHelp');
         let previewOk = false;
         let cameraError = '';
         let stopped = false;
+        let previewErrors = 0;
+        let stateErrors = 0;
+        let durationMinutes = null;
+        let startMs = Date.now();
 
         function setStatus(text, isError) {
           if (!text) {
@@ -132,19 +199,51 @@ def live_page() -> str:
         }
 
         // Poll a single JPEG (Safari/Chrome-friendly) instead of MJPEG.
+        // Reconnects automatically: a failed frame just retries next tick.
         let inflight = false;
         function pollPreview() {
           if (stopped || inflight) return;
+          if (document.hidden) return;  // pause when the tab is not visible
           inflight = true;
           const img = new Image();
           img.onload = () => {
             inflight = false;
+            previewErrors = 0;
             preview.src = img.src;
             previewOk = true;
             if (!cameraError) setStatus('', false);
           };
-          img.onerror = () => { inflight = false; };
+          img.onerror = () => {
+            inflight = false;
+            previewErrors++;
+            if (!cameraError && previewErrors > 3) {
+              setStatus('Reconnecting to the camera…', false);
+              previewOk = false;
+            }
+          };
           img.src = '/api/preview.jpg?ts=' + Date.now();
+        }
+
+        function fmt(sec) {
+          sec = Math.max(0, Math.floor(sec));
+          const m = Math.floor(sec / 60), s = sec % 60;
+          return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        async function autoStop() {
+          if (stopped) return;
+          stopped = true;
+          preview.removeAttribute('src');
+          const r = await fetch('/api/stop', {method:'POST'});
+          if (r.ok) location.href = '/recap';
+        }
+
+        function updateTimer() {
+          if (durationMinutes === null || durationMinutes <= 0) { timerStat.hidden = true; return; }
+          timerStat.hidden = false;
+          const left = durationMinutes * 60 - (Date.now() - startMs) / 1000;
+          timerEl.textContent = fmt(left);
+          if (left <= 0) autoStop();
         }
 
         async function tick() {
@@ -152,9 +251,21 @@ def live_page() -> str:
           try {
             const r = await fetch('/api/state');
             j = await r.json();
-          } catch (e) { return; }
+            stateErrors = 0;
+          } catch (e) {
+            stateErrors++;
+            if (stateErrors > 3) setStatus('Lost connection to the app. Is it still running?', true);
+            return;
+          }
           copy.textContent = j.support_copy || '';
           cameraError = j.error || '';
+          if (durationMinutes === null && typeof j.duration_minutes === 'number') {
+            durationMinutes = j.duration_minutes;
+            if (typeof j.seconds_elapsed === 'number') startMs = Date.now() - j.seconds_elapsed * 1000;
+          }
+          peopleCount.textContent = j.people_count || 0;
+          movingCount.textContent = (j.movements != null ? j.movements : (j.moving_count || 0));
+          permHelp.hidden = !cameraError;
           if (cameraError) {
             setStatus(cameraError, true);
           } else if (!previewOk) {
@@ -162,6 +273,7 @@ def live_page() -> str:
           } else {
             setStatus('', false);
           }
+          updateTimer();
           grid.innerHTML = '';
           if (j.hidden) {
             grid.innerHTML = '<p class="mute">Numbers hidden.</p>';
@@ -188,6 +300,7 @@ def live_page() -> str:
         };
         setInterval(pollPreview, 100);
         setInterval(tick, 700);
+        setInterval(updateTimer, 250);
         pollPreview();
         tick();
         </script>
