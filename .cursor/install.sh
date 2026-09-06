@@ -3,9 +3,8 @@
 #
 # The personal environment's install command is `.cursor/install.sh`. That file
 # was never merged to main, so recurring builds failed with "No such file or
-# directory". This script is self-contained: it uses the default image's
-# python3 (not a Dockerfile-only python3.11) and does not depend on other
-# files under .cursor/.
+# directory". This script is self-contained and does not depend on other files
+# under .cursor/.
 set -euo pipefail
 
 if [ -f requirements.txt ]; then
@@ -17,16 +16,33 @@ else
 fi
 cd "$ROOT"
 
-if command -v python3 >/dev/null 2>&1; then
-  PY=python3
-elif command -v python3.11 >/dev/null 2>&1; then
-  PY=python3.11
-else
-  echo "FAIL: python3 is required but was not found on PATH." >&2
-  exit 1
+python_has_venv() {
+  command -v "$1" >/dev/null 2>&1 && "$1" -c "import venv, ensurepip" >/dev/null 2>&1
+}
+
+select_python() {
+  local candidate
+  for candidate in python3.11 python3; do
+    if python_has_venv "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if ! PY="$(select_python)"; then
+  echo "No Python with venv/ensurepip on PATH; installing python3-venv..."
+  sudo apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-venv
+  if ! PY="$(select_python)"; then
+    echo "FAIL: python3 with the venv module is required." >&2
+    exit 1
+  fi
 fi
 
 echo "== V1 pose stack (app/, tests/) =="
+echo "Using $PY ($("$PY" -c 'import sys; print(sys.version.split()[0])'))"
 "$PY" -m venv .venv
 ./.venv/bin/python -m pip install --disable-pip-version-check --quiet --upgrade pip
 ./.venv/bin/python -m pip install --disable-pip-version-check --quiet -r requirements.txt
