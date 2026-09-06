@@ -11,6 +11,22 @@ not part of the current implementation work. The first beta is adults only.
 
 ## Current implementation status
 
+**First beta platform: macOS. Windows is next (still a target, not abandoned).**
+Decision date: 2026-09-06. The macOS camera slice already runs, so the first
+beta ships on macOS. Windows remains a planned target and is deprioritised for
+now, not dropped.
+
+Run the macOS beta with Python 3.11:
+
+```sh
+./install-v2-mac.sh
+./run-v2.command
+```
+
+That is the primary, supported path today. On Windows, `run.bat` is **not** the
+beta path yet — it is a foundation stub that exits without opening a camera
+until the Windows camera slice lands.
+
 The accepted V2 plan is reconciled with this repository. The first shared V2
 camera runtime and macOS install/run path are implemented; later anonymous-ID,
 sensitivity, alert, and recap slices are not yet implemented. Start with:
