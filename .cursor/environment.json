@@ -4,5 +4,12 @@
     "dockerfile": "Dockerfile"
   },
   "user": "ubuntu",
-  "install": "bash .cursor/install.sh"
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "v1-web",
+      "command": "./.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8470"
+    }
+  ],
+  "ports": [8470]
 }
