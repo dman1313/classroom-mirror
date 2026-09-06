@@ -48,6 +48,12 @@ class Store:
     def _assert_schema(self) -> None:
         rows = self._conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         for (table,) in rows:
+            # SQLite maintains internal tables (e.g. sqlite_sequence for
+            # AUTOINCREMENT) whose schema we do not control. sqlite_sequence has
+            # a column literally named "name", which is not user data, so the
+            # privacy guard must only inspect application tables.
+            if table.startswith("sqlite_"):
+                continue
             cols = [
                 r[1].lower()
                 for r in self._conn.execute(f"PRAGMA table_info({table})").fetchall()
