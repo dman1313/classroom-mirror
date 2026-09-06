@@ -1,0 +1,8 @@
+{
+  "name": "Classroom Mirror",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh"
+}
