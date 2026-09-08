@@ -32,6 +32,14 @@ class CameraUnavailable(RuntimeError):
     """The explicitly selected camera could not provide in-memory frames."""
 
 
+class CameraBusy(CameraUnavailable):
+    """The selected camera exists but is already held by another process."""
+
+
+class CameraPermissionDenied(CameraUnavailable):
+    """The operating system denied access to the selected camera."""
+
+
 @dataclass(frozen=True)
 class CameraInfo:
     index: int
@@ -101,7 +109,18 @@ def smoke_camera(
         raise ValueError("smoke duration must be greater than 0 and at most 30 seconds")
 
     factory = capture_factory or _opencv_capture
-    capture = factory(index)
+    try:
+        capture = factory(index)
+    except PermissionError as exc:
+        raise CameraPermissionDenied(
+            f"Camera {index} access was denied by the operating system. No "
+            "fallback camera was attempted."
+        ) from exc
+    except OSError as exc:
+        raise CameraBusy(
+            f"Camera {index} is present but could not be claimed; it may be in "
+            "use by another application. No fallback camera was attempted."
+        ) from exc
     started = clock()
     frame_count = 0
     backend = "UNKNOWN"

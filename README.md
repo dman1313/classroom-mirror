@@ -11,9 +11,17 @@ not part of the current implementation work. The first beta is adults only.
 
 ## Current implementation status
 
-The accepted V2 plan is reconciled with this repository. The first shared V2
-camera runtime and macOS install/run path are implemented; later anonymous-ID,
-sensitivity, alert, and recap slices are not yet implemented. Start with:
+The accepted V2 plan is reconciled with this repository. The shared V2 camera
+runtime, the macOS install/run path, and the Windows T1 camera-slice launcher
+(`v2_runtime/launcher.py`) are implemented, and `check-v2.py --stage t1` now
+passes all ten acceptance tests against a real selected camera. This has only
+been exercised against a real webcam on macOS as a stand-in device; the
+Windows-specific pieces (`install.ps1` device enumeration, `run.bat` under
+`cmd.exe`, the `ms-settings:privacy-webcam` guidance) still need the real
+Windows 10/11 x64 + USB webcam smoke in
+[WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md) before T1 can be called done.
+Later anonymous-ID, sensitivity, alert, and recap slices are not yet
+implemented. Start with:
 
 - [V2-DELTA.md](V2-DELTA.md) — contract conflict, repository inventory, exact
   acceptance tests and commands, and the bounded T1 implementation slice.
@@ -39,7 +47,8 @@ Run the dependency-free T0 readiness check with Python 3.11:
 python check-v2.py --stage t0
 ```
 
-The T1 gate intentionally fails closed until the Windows runtime suite exists:
+Run the T1 gate against a selected camera index (real hardware required for
+the `camera`-marked tests; they fail closed, never silently skip, without it):
 
 ```sh
 python check-v2.py --stage t1 --camera-index 1

@@ -1,8 +1,17 @@
-"""T1 Windows runtime acceptance tests that do not require a real camera."""
+"""T1 Windows runtime acceptance tests.
+
+Tests marked ``camera`` require an explicitly selected real USB webcam (see
+``camera_index`` in ``v2_tests/strict_acceptance.py``) and are the genuine
+hardware proof for the acceptance IDs that need it; every other test uses
+fakes and temporary directories only, per the T1 focused development loop in
+``V2-DELTA.md``.
+"""
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr
 import importlib.util
+from io import StringIO
 from pathlib import Path
 import re
 
@@ -17,6 +26,57 @@ from v2_runtime.policy import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _list_files(root: Path) -> set[str]:
+    """A filename-only snapshot; used to prove a directory tree is untouched."""
+    if not root.exists():
+        return set()
+    return {
+        str(path.relative_to(root))
+        for path in root.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    }
+
+
+class _FakeCapture:
+    def __init__(self, opened: bool = False, frames=None, backend: str = "USB"):
+        self._opened = opened
+        self._frames = list(frames or ())
+        self._backend = backend
+        self.released = False
+
+    def isOpened(self):
+        return self._opened
+
+    def read(self):
+        if not self._frames:
+            return False, None
+        return self._frames.pop(0)
+
+    def getBackendName(self):
+        return self._backend
+
+    def release(self):
+        self.released = True
+
+
+class _FakeCaptureFactory:
+    """A capture_factory that also simulates OS-level open failures."""
+
+    def __init__(self, cameras: dict | None = None, raises: dict | None = None):
+        self.cameras = cameras or {}
+        self.raises = raises or {}
+        self.opened_indexes: list[int] = []
+        self.instances: list[_FakeCapture] = []
+
+    def __call__(self, index: int) -> _FakeCapture:
+        self.opened_indexes.append(index)
+        if index in self.raises:
+            raise self.raises[index]
+        capture = _FakeCapture(**self.cameras.get(index, {}))
+        self.instances.append(capture)
+        return capture
 
 
 def _load_v2_runner():
@@ -198,23 +258,149 @@ def test_t1_result_rejects_skips_and_empty_collection(tmp_path):
     assert outcomes == {"skip": 1, "xfail": 1, "failure": 1, "pass": 0}
 
     present, missing = runner.inspect_t1_acceptance_tests(Path(__file__))
-    assert present == {
-        "V2-T1-01",
-        "V2-T1-06",
-        "V2-T1-07",
-        "V2-T1-09",
-        "V2-T1-10",
-    }
-    assert missing == {
-        "V2-T1-02",
-        "V2-T1-03",
-        "V2-T1-04",
-        "V2-T1-05",
-        "V2-T1-08",
-    }
+    assert present == set(runner.REQUIRED_T1_TESTS)
+    assert missing == set()
 
 
-def test_run_bat_foundation_fails_closed_until_camera_increment():
+def test_camera_inventory_can_select_non_default_device(monkeypatch, tmp_path):
+    """V2-T1-02: inventory rows are stable and the launcher opens the
+    requested index, never a hardcoded camera 0."""
+    from v2_runtime import camera, launcher
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    inventory_factory = _FakeCaptureFactory(
+        {0: {"opened": True, "backend": "BUILT-IN"}, 4: {"opened": True, "backend": "USB"}}
+    )
+    inventory = camera.inventory_cameras(max_index=4, capture_factory=inventory_factory)
+    assert [row.index for row in inventory] == [0, 4]
+    assert [row.backend for row in inventory] == ["BUILT-IN", "USB"]
+
+    smoke_factory = _FakeCaptureFactory(
+        {4: {"opened": True, "backend": "USB", "frames": [(True, object())] * 40}}
+    )
+    monkeypatch.setattr(camera, "_opencv_capture", smoke_factory)
+    monkeypatch.setattr(launcher, "_run_bounded_service", lambda *a, **k: {"ok": True})
+
+    result = launcher.main(["--smoke-test", "--camera-index", "4", "--seconds", "0.05"])
+
+    assert result == 0
+    assert smoke_factory.opened_indexes == [4]
+
+
+def test_missing_or_denied_camera_fails_clearly(monkeypatch, tmp_path):
+    """V2-T1-03: absent, busy, and OS-denied cameras get distinct diagnostics,
+    with ms-settings:privacy-webcam guidance shown only for denial."""
+    from v2_runtime import camera, launcher
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    absent_factory = _FakeCaptureFactory({})
+    monkeypatch.setattr(camera, "_opencv_capture", absent_factory)
+    output = StringIO()
+    with redirect_stderr(output):
+        result = launcher.main(["--smoke-test", "--camera-index", "3", "--seconds", "0.05"])
+    assert result == launcher.EXIT_CAMERA_ABSENT
+    assert "was not found" in output.getvalue()
+    assert "ms-settings:privacy-webcam" not in output.getvalue()
+
+    busy_factory = _FakeCaptureFactory(raises={3: OSError("device busy")})
+    monkeypatch.setattr(camera, "_opencv_capture", busy_factory)
+    output = StringIO()
+    with redirect_stderr(output):
+        result = launcher.main(["--smoke-test", "--camera-index", "3", "--seconds", "0.05"])
+    assert result == launcher.EXIT_CAMERA_BUSY
+    assert "in use by another application" in output.getvalue()
+    assert "ms-settings:privacy-webcam" not in output.getvalue()
+
+    denied_factory = _FakeCaptureFactory(raises={3: PermissionError("camera access denied")})
+    monkeypatch.setattr(camera, "_opencv_capture", denied_factory)
+    output = StringIO()
+    with redirect_stderr(output):
+        result = launcher.main(["--smoke-test", "--camera-index", "3", "--seconds", "0.05"])
+    assert result == launcher.EXIT_CAMERA_DENIED
+    assert "ms-settings:privacy-webcam" in output.getvalue()
+
+
+@pytest.mark.camera
+def test_selected_camera_reads_frames_in_memory_and_releases(camera_index):
+    """V2-T1-04: the real selected USB camera reads frames and is released."""
+    import cv2
+
+    from v2_runtime.camera import smoke_camera
+
+    result = smoke_camera(camera_index, seconds=1.0)
+
+    assert result.camera_index == camera_index
+    assert result.frame_count > 0
+    assert result.backend
+
+    reopened = cv2.VideoCapture(camera_index)
+    try:
+        assert reopened.isOpened(), "camera was not released by the prior smoke"
+    finally:
+        reopened.release()
+
+
+@pytest.mark.camera
+def test_camera_smoke_writes_no_frame_image_or_video(camera_index, tmp_path, monkeypatch):
+    """V2-T1-05: a real-camera smoke leaves no new file anywhere watched."""
+    from v2_runtime.camera import smoke_camera
+
+    local_app_data = tmp_path / "LocalAppData"
+    local_app_data.mkdir()
+    work_dir = tmp_path / "cwd"
+    work_dir.mkdir()
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    monkeypatch.chdir(work_dir)
+
+    before = {
+        "repo": _list_files(ROOT),
+        "local_app_data": _list_files(local_app_data),
+        "cwd": _list_files(work_dir),
+    }
+
+    result = smoke_camera(camera_index, seconds=1.0)
+    assert result.frame_count > 0
+
+    after = {
+        "repo": _list_files(ROOT),
+        "local_app_data": _list_files(local_app_data),
+        "cwd": _list_files(work_dir),
+    }
+    assert after == before
+
+    source = (ROOT / "v2_runtime" / "camera.py").read_text(encoding="utf-8")
+    for forbidden in ("imwrite", "VideoWriter", "imencode"):
+        assert forbidden not in source
+
+
+@pytest.mark.camera
+def test_run_bat_smoke_uses_selected_camera_and_exits(camera_index, tmp_path, monkeypatch):
+    """V2-T1-08: run.bat's underlying launcher uses the selected real camera,
+    starts the loopback service, reports health, and returns nonzero on
+    failure."""
+    from v2_runtime import launcher
+
+    source = (ROOT / "run.bat").read_text(encoding="utf-8")
+    assert "v2_runtime.launcher" in source
+    assert "%*" in source
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    ok = launcher.main(["--smoke-test", "--camera-index", str(camera_index), "--seconds", "1"])
+    assert ok == 0
+
+    def _raise_service_failure(*_args, **_kwargs):
+        raise RuntimeError("loopback service did not start within the bounded window")
+
+    monkeypatch.setattr(launcher, "_run_bounded_service", _raise_service_failure)
+    failing = launcher.main(["--smoke-test", "--camera-index", str(camera_index), "--seconds", "1"])
+    assert failing == launcher.EXIT_SERVICE_FAILED
+    assert failing != 0
+
+
+def test_run_bat_forwards_arguments_and_propagates_exit_code():
     source = (ROOT / "run.bat").read_text(encoding="utf-8").lower()
     for argument in ("--smoke-test", "--camera-index", "--seconds"):
         assert argument in source

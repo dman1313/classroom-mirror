@@ -8,6 +8,16 @@
 
 **Status:** T0 handoff for T1; this document does not implement the V2 runtime.
 
+**2026-09-08 update:** the `V2-T1-01`…`V2-T1-10` acceptance suite is now
+complete in `v2_tests/test_windows_runtime.py`, and `check-v2.py --stage t1`
+passes end to end against a real selected camera. The camera-hardware-dependent
+tests (`V2-T1-02/04/05/08`) are marked `@pytest.mark.camera` and fail closed,
+never skip, without an explicitly selected real device — see the T1 focused
+development loop below. This has so far only been run against a real webcam on
+macOS as a stand-in; it has not yet been run on real Windows 10/11 x64 with a
+USB webcam per `WINDOWS-V2-SMOKE.md`, which remains the actual T1 acceptance
+evidence for the contractual target platform.
+
 ## Decision
 
 V2 is the product path: a Windows 10/11 teacher-desk app using a selectable
