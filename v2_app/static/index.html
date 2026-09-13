@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Classroom Mirror</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div
+      id="privacy"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-label="Dashboard hidden"
+    >
+      <div class="privacy-mark">◈</div>
+      <h1>Your dashboard is hidden.</h1>
+      <p>The session can continue privately.</p>
+      <button id="restore" class="primary">Show dashboard</button
+      ><button id="private-stop" class="quiet">Stop session</button>
+    </div>
+    <div class="app-shell" id="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#session"
+          ><span class="brand-symbol">◈</span
+          ><span>classroom<span class="brand-second">mirror</span></span></a
+        >
+        <div class="workspace-label">YOUR TEACHING SPACE</div>
+        <nav aria-label="Main navigation">
+          <button data-view="session" class="nav active">
+            <span>▧</span> Live session <i id="nav-live" hidden></i>
+          </button>
+          <button data-view="history" class="nav">
+            <span>▤</span> Session recaps
+          </button>
+          <button data-view="help" class="nav">
+            <span>◎</span> Getting started
+          </button>
+        </nav>
+        <div class="sidebar-note">
+          <span class="local-dot"></span><strong>Only on this computer</strong>
+          <p>Your camera stays local.<br />Images are never recorded.</p>
+        </div>
+        <div class="sidebar-bottom">
+          <span class="avatar">T</span>
+          <div>Teacher workspace<small>Private · adult trial</small></div>
+        </div>
+      </aside>
+      <main>
+        <header class="topbar">
+          <span id="breadcrumb"
+            >Workspace <span class="slash">/</span> Live session</span
+          >
+          <div>
+            <span class="local-pill"><i></i> Local & private</span
+            ><button
+              class="hide-button"
+              id="hide"
+              title="Hide everything (Esc)"
+            >
+              ◉ <span>Hide screen</span><kbd>esc</kbd>
+            </button>
+          </div>
+        </header>
+        <div class="content">
+          <div id="error" class="error" hidden role="alert"></div>
+          <section id="session-view">
+            <div class="page-heading">
+              <div>
+                <div class="eyebrow" id="date-label">
+                  YOUR CLASSROOM, AT A GLANCE
+                </div>
+                <h1 id="page-title">
+                  A little perspective.<br />A clearer classroom.
+                </h1>
+                <p id="page-subtitle">
+                  Notice movement, follow raised hands, and reflect on the
+                  session.
+                </p>
+              </div>
+              <div class="session-badge" id="session-badge">
+                <i></i> Ready when you are
+              </div>
+            </div>
+            <div class="metrics" aria-label="Session measures">
+              <article class="metric">
+                <span>People in view <span class="metric-icon">♧</span></span
+                ><strong id="people">—</strong
+                ><small>Detected in the current frame</small>
+              </article>
+              <article class="metric">
+                <span>Moving now <span class="metric-icon">↗</span></span
+                ><strong id="moving">—</strong
+                ><small>Visible body movement</small>
+              </article>
+              <article class="metric">
+                <span>Hand raises <span class="metric-icon">☝</span></span
+                ><strong id="raises">—</strong
+                ><small>Counted during this session</small>
+              </article>
+              <article class="metric">
+                <span>Time remaining <span class="metric-icon">◷</span></span
+                ><strong id="timer">—:—</strong
+                ><small id="timer-caption">Choose a session length</small>
+              </article>
+            </div>
+            <div class="dashboard-grid">
+              <section class="stage-card">
+                <div class="card-heading">
+                  <h2>Classroom view</h2>
+                  <div class="view-tag" id="source-label">CAMERA OFF</div>
+                </div>
+                <div class="stage" id="stage">
+                  <canvas
+                    id="room"
+                    width="960"
+                    height="540"
+                    aria-label="Teacher-only view of current position markers"
+                  ></canvas>
+                  <div class="stage-empty" id="stage-empty">
+                    <div class="camera-symbol">▣</div>
+                    <h3>Make room for a new perspective.</h3>
+                    <p>
+                      Connect your camera to begin, or explore<br />with a
+                      made-up practice session.
+                    </p>
+                    <button id="try-demo" class="demo-button">
+                      ▷ &nbsp; Try a practice session</button
+                    ><small>No camera needed</small>
+                  </div>
+                  <div class="stage-status" id="stage-status" hidden>
+                    <span class="spinner"></span>
+                    <h3>Getting things ready…</h3>
+                    <p id="stage-message">Loading the local pose model.</p>
+                  </div>
+                  <div class="stage-footer">
+                    <span><i></i> TEACHER VIEW</span
+                    ><span id="stage-footer-text"
+                      >No image or video recording</span
+                    >
+                  </div>
+                </div>
+                <div class="legend">
+                  <span><i class="calm-dot"></i> Position marker</span
+                  ><span><i class="yellow-dot"></i> Movement continues</span
+                  ><span><i class="red-dot"></i> Sustained movement</span>
+                </div>
+                <div class="chart-wrap">
+                  <div class="chart-heading">
+                    <h3>Movement over time</h3>
+                    <span>Moving positions · 10-second intervals</span>
+                  </div>
+                  <canvas
+                    id="timeline"
+                    width="900"
+                    height="105"
+                    aria-label="Timeline showing the number of moving positions"
+                  ></canvas>
+                  <div class="chart-axis">
+                    <span>Session start</span><span id="timeline-end">Now</span>
+                  </div>
+                </div>
+              </section>
+              <aside class="setup-card" id="setup-card">
+                <div class="card-heading">
+                  <h2>Set up your session</h2>
+                  <span class="step-label">01 — START</span>
+                </div>
+                <form id="start-form">
+                  <fieldset>
+                    <legend>Choose a source</legend>
+                    <div class="segmented">
+                      <label
+                        ><input
+                          type="radio"
+                          name="source"
+                          value="camera"
+                          checked
+                        /><span>▣ &nbsp; Camera</span></label
+                      ><label
+                        ><input type="radio" name="source" value="demo" /><span
+                          >▷ &nbsp; Practice</span
+                        ></label
+                      >
+                    </div>
+                  </fieldset>
+                  <div id="camera-options">
+                    <div class="label-row">
+                      <label for="camera">Your camera</label
+                      ><button id="scan" type="button" class="text-button">
+                        Find cameras ↻
+                      </button>
+                    </div>
+                    <select id="camera" aria-describedby="camera-help">
+                      <option value="">Select a camera</option>
+                    </select>
+                    <p class="field-note" id="camera-help">
+                      Use Find cameras to check connected devices. macOS may ask
+                      for camera permission.
+                    </p>
+                  </div>
+                  <div id="demo-note" class="practice-note" hidden>
+                    Six made-up figures help you explore the controls. Practice
+                    results are labelled in your recaps.
+                  </div>
+                  <fieldset>
+                    <legend>Movement sensitivity</legend>
+                    <div class="sensitivity-options">
+                      <label
+                        ><input
+                          type="radio"
+                          name="sensitivity"
+                          value="low"
+                          checked
+                        /><span
+                          ><strong>Low</strong
+                          ><small>Wait longer before a cue</small></span
+                        ><span class="recommended">SUGGESTED</span></label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="sensitivity"
+                          value="high"
+                        /><span
+                          ><strong>High</strong
+                          ><small>Show a cue sooner</small></span
+                        ></label
+                      >
+                    </div>
+                  </fieldset>
+                  <label for="duration">Session length</label
+                  ><select id="duration">
+                    <option value="1">1 minute · quick trial</option>
+                    <option value="5">5 minutes</option>
+                    <option value="20">20 minutes</option>
+                    <option value="40">40 minutes</option>
+                    <option value="60">60 minutes</option>
+                  </select>
+                  <label class="adult-check" id="adult-row"
+                    ><input type="checkbox" id="adult" /><span
+                      >I’m testing with consenting adults only.</span
+                    ></label
+                  >
+                  <button class="primary start-button" id="start" type="submit">
+                    Start session <span>→</span>
+                  </button>
+                  <p class="start-note">
+                    Settings stay fixed until the session ends.
+                  </p>
+                </form>
+              </aside>
+              <aside class="setup-card" id="live-card" hidden>
+                <div class="card-heading">
+                  <h2>Session in progress</h2>
+                  <span class="live-dot"></span>
+                </div>
+                <p class="live-intro" id="live-intro">
+                  Your view, in the moment.
+                </p>
+                <div class="live-settings">
+                  <span
+                    >Sensitivity
+                    <strong id="live-sensitivity">Low</strong></span
+                  ><span>Source <strong id="live-source">Camera</strong></span>
+                </div>
+                <h3 class="position-title">Positions in view</h3>
+                <div class="track-list" id="track-list"></div>
+                <p class="field-note">
+                  Numbers follow positions for this session. They may change
+                  when people cross or leave view.
+                </p>
+                <button class="stop-button" id="stop">
+                  ■ &nbsp; Stop & see recap
+                </button>
+                <p class="start-note">
+                  The timer also stops the session automatically.
+                </p>
+              </aside>
+            </div>
+            <div class="reflection-note">
+              <span>✧</span>
+              <p>
+                <strong>A prompt to notice, a moment to reflect.</strong>
+                Movement has many explanations. Use these cues alongside what
+                you see and know about the room.
+              </p>
+            </div>
+          </section>
+          <section id="history-view" hidden>
+            <div class="page-heading compact">
+              <div>
+                <div class="eyebrow">A MOMENT TO REFLECT</div>
+                <h1>Session recaps</h1>
+                <p>Session totals, kept on this computer for 30 days.</p>
+              </div>
+              <button id="delete-all" class="quiet danger">
+                Delete all recaps
+              </button>
+            </div>
+            <div id="history-list"></div>
+          </section>
+          <section id="recap-view" hidden>
+            <button id="back-history" class="text-button">← All recaps</button>
+            <div id="recap-content"></div>
+          </section>
+          <section id="help-view" hidden>
+            <div class="page-heading compact">
+              <div>
+                <div class="eyebrow">START SMALL</div>
+                <h1>Your first session</h1>
+                <p>A one-minute adult trial is a good place to begin.</p>
+              </div>
+            </div>
+            <div class="help-grid">
+              <article>
+                <span class="help-number">01</span>
+                <h2>Find your view</h2>
+                <p>
+                  Choose Camera, then Find cameras. Select your built-in or USB
+                  camera. Keep the laptop steady, use good light, and make sure
+                  shoulders and hands are visible.
+                </p>
+              </article>
+              <article>
+                <span class="help-number">02</span>
+                <h2>Try one minute</h2>
+                <p>
+                  Select Low sensitivity and a one-minute trial. Confirm the
+                  adult-only trial, then start. Raise your hand three separate
+                  times, lowering it between raises.
+                </p>
+              </article>
+              <article>
+                <span class="help-number">03</span>
+                <h2>Review what happened</h2>
+                <p>
+                  Stop to see the recap. Check whether the counts reflect your
+                  trial. You can print or download the totals, or delete the
+                  recap.
+                </p>
+              </article>
+            </div>
+            <div class="help-panel">
+              <h2>A few things to know</h2>
+              <details open>
+                <summary>What do the coloured cues mean?</summary>
+                <p>
+                  Yellow means visible movement has continued; red means it has
+                  continued longer. High sensitivity shortens the wait. Cues do
+                  not assess attention, emotions, learning, or behaviour.
+                </p>
+              </details>
+              <details>
+                <summary>What is saved?</summary>
+                <p>
+                  Only session totals and a room-level movement timeline. No
+                  images, video, names, face templates, or individual histories
+                  are saved. Recaps expire after 30 days and can be deleted
+                  sooner.
+                </p>
+              </details>
+              <details>
+                <summary>How do I hide the screen?</summary>
+                <p>
+                  Press Escape or Hide screen to cover the entire dashboard
+                  immediately. Camera images and counters are blocked while
+                  hidden. Show dashboard brings it back. Closing the dashboard
+                  stops capture after 30 seconds.
+                </p>
+              </details>
+              <details>
+                <summary>The camera isn’t working</summary>
+                <p>
+                  Close Zoom, Teams, FaceTime, and other camera apps. On Mac,
+                  open System Settings → Privacy & Security → Camera and allow
+                  the app that launched Classroom Mirror (usually Terminal or
+                  Codex). On Windows, check Settings → Privacy & security →
+                  Camera and allow desktop apps. Reopen the launcher after
+                  changing permissions.
+                </p>
+              </details>
+              <details>
+                <summary>Can I use this with students?</summary>
+                <p>
+                  This build is for consenting adult trials. The project’s
+                  design requires school approval and a data-protection review
+                  before classroom use. Crowding, distance, occlusion, and
+                  camera shake can change the results.
+                </p>
+              </details>
+            </div>
+          </section>
+          <footer>
+            CLASSROOM MIRROR <span>A private space for teacher reflection.</span
+            ><span>Adult trial · local processing</span>
+          </footer>
+        </div>
+      </main>
+    </div>
+    <dialog id="confirm-dialog">
+      <h2 id="confirm-title">Delete this recap?</h2>
+      <p>
+        This removes the saved totals from this computer. This cannot be undone.
+      </p>
+      <div class="dialog-actions">
+        <button id="cancel-delete" class="quiet">Keep recaps</button
+        ><button id="confirm-delete" class="stop-button">Delete</button>
+      </div>
+    </dialog>
+  </body>
+</html>
