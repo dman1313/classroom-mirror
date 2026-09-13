@@ -1,5 +1,5 @@
 #!/bin/sh
-# Double-click for the V2 camera picker, or pass smoke arguments in Terminal.
+# Double-click for the teacher dashboard; keep explicit camera smoke commands.
 set -eu
 
 cd "$(dirname "$0")"
@@ -10,4 +10,9 @@ if [ ! -x "$python_bin" ]; then
   exit 2
 fi
 
-exec "$python_bin" -m v2_runtime.mac_launcher "$@"
+case " $* " in
+  *" --smoke-test "*|*" --list-cameras "*)
+    exec "$python_bin" -m v2_runtime.mac_launcher "$@"
+    ;;
+  *) exec "$python_bin" -m v2_app "$@" ;;
+esac
