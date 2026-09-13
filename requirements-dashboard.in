@@ -1,0 +1,5 @@
+# Reviewed direct dependencies for the teacher dashboard, 2026-09-13.
+-r requirements-v2-runtime.txt
+ultralytics==8.4.150
+torch==2.14.0
+torchvision==0.29.0
