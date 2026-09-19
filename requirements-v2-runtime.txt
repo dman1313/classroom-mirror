@@ -2,6 +2,7 @@
 opencv-python==4.14.0.94
 fastapi==0.141.1
 uvicorn==0.52.4
+python-multipart==0.0.20
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
