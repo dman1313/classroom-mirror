@@ -1,0 +1,6 @@
+# Dev-only tools for autonomous agent workflows. Kept separate from the product
+# locks (requirements.txt, requirements-v2-runtime.txt) so the shipped runtime
+# stays exactly as pinned. Installed into BOTH venvs by .cursor/install.sh so
+# either interpreter can run any suite without cross-referencing the other.
+pytest>=8.0
+httpx>=0.27

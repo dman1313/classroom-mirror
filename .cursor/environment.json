@@ -1,0 +1,21 @@
+{
+  "name": "Classroom Mirror",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "v1-web",
+      "command": "./.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8470",
+      "description": "Classroom Mirror V1 dashboard at http://127.0.0.1:8470 . Seed data with: ./.venv/bin/python .cursor/seed_demo.py --reset"
+    }
+  ],
+  "ports": [
+    {
+      "name": "v1-web",
+      "port": 8470
+    }
+  ]
+}
