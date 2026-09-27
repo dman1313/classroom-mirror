@@ -1,8 +1,9 @@
 # Classroom Mirror — Setup Guide
 
 > **Historical V1 instructions.** This Mac/LIMS/pose-only setup is preserved as
-> test evidence and is not the accepted V2 product path. For current work, read
-> [V2-DELTA.md](V2-DELTA.md) and [WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md).
+> test evidence and is not the accepted product path. The current app is the
+> teacher dashboard in [README.md](README.md) and [SDD-DASHBOARD.md](SDD-DASHBOARD.md).
+> `run.command` and `install.sh` now refuse to launch V1 and redirect you there.
 > Do not use this setup for a student trial.
 
 A local webcam tool that turns classroom moments into **numbers, never video**.
@@ -32,9 +33,9 @@ Double-click **run.command** in this folder.
 - Your web browser opens the app at `http://127.0.0.1:8470`.
 - Leave the black Terminal window open; closing it stops the app.
 
-The app comes with a little **made-up demo data** (a pretend child "L-7" and
-some pretend sessions) so the reports have something to show. Erase it any
-time with the delete buttons on the home page.
+V1 does **not** ship seeded demo data. The "L-7" examples live only in the
+historical test fixtures under `tests/`. After a fresh V1 install the reports
+are empty until you run a session (adults only during development).
 
 ## Using it
 

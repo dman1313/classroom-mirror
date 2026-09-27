@@ -1,5 +1,5 @@
 #!/bin/sh
-# Classroom Mirror V2 camera-slice installer for macOS. No sudo/elevation.
+# Classroom Mirror teacher dashboard installer for macOS. No sudo/elevation.
 set -eu
 
 cd "$(dirname "$0")"
@@ -41,10 +41,11 @@ fi
 venv_dir=".venv-mac-v2"
 echo "Creating the V2 Python environment..."
 "$python_bin" -m venv "$venv_dir"
-echo "Installing the pinned V2 camera runtime..."
+echo "Installing the pinned teacher dashboard runtime..."
 "$venv_dir/bin/python" -m pip install --disable-pip-version-check \
-  -r requirements-v2-runtime.txt
+  --require-hashes -r requirements-dashboard.txt
 "$venv_dir/bin/python" -c 'import cv2, fastapi, uvicorn; print("PASS: V2 runtime imports are ready.")'
+"$venv_dir/bin/python" scripts/setup_model.py
 
-echo "Install complete. Run ./run-v2.command to choose the USB camera."
+echo "Install complete. Double-click Open Classroom Mirror.command."
 echo "If macOS asks, allow Terminal in System Settings > Privacy & Security > Camera."

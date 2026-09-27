@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "classroom-mirror",
-      "runtimeExecutable": "/Volumes/M2 Media/Coding Dwayne/Claude/classroom-mirror/.venv/bin/python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8470"],
-      "cwd": "/Volumes/M2 Media/Coding Dwayne/Claude/classroom-mirror",
+      "name": "classroom-mirror-dashboard",
+      "runtimeExecutable": "${workspaceFolder}/.venv-mac-v2/bin/python",
+      "runtimeArgs": ["-m", "v2_app", "--no-browser"],
+      "cwd": "${workspaceFolder}",
       "port": 8470
     }
   ]
