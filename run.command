@@ -1,11 +1,9 @@
 #!/bin/sh
-# Double-click me to start Classroom Mirror. It opens in your web browser.
-cd "$(dirname "$0")"
-if [ ! -x ".venv/bin/python" ]; then
-  echo "The app is not installed yet. Run:  bash install.sh"
-  read -r _
-  exit 1
-fi
-echo "Starting Classroom Mirror at http://127.0.0.1:8470 ..."
-echo "(Leave this window open. Close it or press Ctrl+C to stop the app.)"
-exec ./.venv/bin/python -m app.main
+# Historical V1 entry point. The current product is the teacher dashboard.
+cd "$(dirname "$0")" || exit 1
+echo "This is the retired V1 Classroom Mirror build."
+echo "Use Open Classroom Mirror.command (or ./run-v2.command) for the current product."
+echo "See README.md and SDD-DASHBOARD.md."
+printf "Press Return to close. "
+read -r _
+exit 2

@@ -1,19 +1,22 @@
 # Classroom Mirror — usable dashboard design
 
-Date: 2026-09-13. Target for this delivery: this macOS computer, with a private
-teacher interface and consenting-adult trials. This document describes the
-implementation; it does not amend the signed historical V1 contract.
+Date: 2026-09-13 (landed on product branch 2026-09-27). Target for this
+delivery: macOS adult trial, with a private teacher interface and
+consenting-adult camera trials. This document describes the implementation; it
+does not amend the signed historical V1 contract.
 
 ## Source review and decisions
 
 The repository's design sources were `CONTRACT.md`, `V2-DELTA.md`, `AUDIT.md`,
 `MAC-V2-SMOKE.md`, and the unmerged `cursor/v2-teacher-product`,
 `cursor/v2-teacher-yolo-ae72`, `cursor/live-view-mac-ready-990b`, and
-`cursor/v2-movement-dashboard-85f2` branches. There was no standalone SDD file.
+`cursor/v2-movement-dashboard-85f2` branches. There was no standalone SDD file
+when this work began; this file is that SDD.
 
 Main contained a camera connection page, while dashboard experiments were
 unmerged. This implementation builds a coherent teacher path on main's runtime
-foundation and retains the historical evidence and camera checks.
+foundation and retains the historical evidence and camera checks. V1
+`run.command` / `install.sh` refuse to launch and redirect to the dashboard.
 
 The experimental face-template path used cosine similarity over downsampled
 face pixels. Its “wrap” added an HMAC but left the template plaintext. It also

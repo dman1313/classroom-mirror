@@ -27,6 +27,22 @@ flags, and an end-of-class recap. Runtime is local only. Frames and face crops
 remain in RAM. Names, stored image/video, cloud processing, automated
 consequences, and student trials are out of scope.
 
+> **Update 2026-09-06 — first beta platform is macOS, Windows follows.** The
+> text below describes Windows 10/11 as the current shipping target. That
+> product goal is unchanged, but the owner decision for the *first beta* is to
+> ship on **macOS first** because its camera slice already runs, and to
+> deprioritise (not abandon) Windows to "next." Windows remains a planned
+> target. This note updates the shipping order only; it does not retire any
+> contract text above or below. See `README.md` for how to run the macOS beta.
+
+> **Update 2026-09-27 — usable teacher dashboard landed per
+> [SDD-DASHBOARD.md](SDD-DASHBOARD.md).** The first teacher-visible product path
+> is the loopback dashboard (`v2_app/`): Camera or Practice, High/Low
+> sensitivity, session-local position numbers, yellow→red movement cues,
+> hand-raise counts, Hide, Stop→aggregate recap. Sticky **face templates** from
+> the older plan remain out of this delivery by design (position matching only).
+> Live adult camera trial and Windows device smoke remain human checks.
+
 The signed V1 `CONTRACT.md` is historical evidence, not the V2 contract. It is
 preserved byte-for-byte at SHA-256
 `512212808758c2a82b8e14e5a776d7fcc8526e7ed5720e9dd6565c47398ca4b9`.

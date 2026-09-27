@@ -5,6 +5,9 @@ session, see numbered position markers, count visible hand raises, follow
 movement cues, and stop to read a recap. A clearly labelled practice mode works
 without a camera.
 
+**First beta platform: macOS (decided 2026-09-06). Windows is next — still a
+target, not abandoned.**
+
 ## Open the app
 
 On this Mac, double-click **Open Classroom Mirror.command**. The dashboard opens
@@ -23,6 +26,8 @@ and verified local pose model. Later runs work offline.
 Choose **Try a practice session** to explore the interface with six made-up
 figures. Practice recaps are always labelled; they do not demonstrate real-camera
 accuracy.
+
+The historical V1 `run.command` / `install.sh` refuse to launch and point here.
 
 ## What this version does
 
@@ -43,10 +48,10 @@ and blocks non-loopback network connections at runtime.
 
 ## Design and limits
 
-[SDD-DASHBOARD.md](SDD-DASHBOARD.md) records the current implementation and its
-relationship to the existing [V2-DELTA.md](V2-DELTA.md), [AUDIT.md](AUDIT.md), and
-unmerged dashboard branches. No standalone SDD file was present in the repository
-when this work began.
+[SDD-DASHBOARD.md](SDD-DASHBOARD.md) is the product design for this delivery. It
+reconciles [V2-DELTA.md](V2-DELTA.md), [AUDIT.md](AUDIT.md), and earlier
+dashboard experiments. The signed historical [CONTRACT.md](CONTRACT.md) is
+unchanged evidence, not the V2 scoreboard.
 
 Position numbers reset each session and may change when people cross or leave
 the frame. This build does **not** implement the older plan's persistent face
@@ -54,11 +59,12 @@ matching. Movement and hand-raise counts remain heuristic: crowds, distance,
 lighting, camera shake, and occlusion can change results. The project's adult
 trial and school-review requirements remain in place.
 
-**Verified on this Mac:** automated dashboard tests, browser practice/recap/privacy
-flow, mobile layout, and real pose-model inference with outbound connections
-blocked. A live consenting-adult camera trial is still required to validate
-physical camera permissions, framing, and observed counts. Windows hardware is
-not verified by this work.
+**Verified:** automated dashboard tests, non-hardware V2 gates (`t0`, `t1-mac`),
+browser practice/recap/privacy flow, and real pose-model inference with outbound
+connections blocked (on the authoring Mac). A live consenting-adult camera trial
+is still required to validate physical camera permissions, framing, and observed
+counts. Windows USB webcam smoke is still required per
+[WINDOWS-V2-SMOKE.md](WINDOWS-V2-SMOKE.md).
 
 ## Development checks
 
@@ -74,10 +80,9 @@ For the original real-camera gate, supply a selected device explicitly:
 ./run-v2.command --smoke-test --camera-index 1 --seconds 3
 ```
 
-The original `app/`, `tests/`, `CONTRACT.md`, `run.command`, and `./check`
-remain historical V1 evidence. The T1 camera slices remain in `v2_runtime/`.
-Use **Open Classroom Mirror.command** or plain `./run-v2.command` for the new
-teacher dashboard.
+The original `app/`, `tests/`, `CONTRACT.md`, and `./check` remain historical V1
+evidence. The T1 camera slices remain in `v2_runtime/`. Use **Open Classroom
+Mirror.command** or plain `./run-v2.command` for the teacher dashboard.
 
 Runtime dependency versions and hashes are in `requirements-dashboard.txt`;
 source/model provenance is in [DEPENDENCIES.md](DEPENDENCIES.md).
